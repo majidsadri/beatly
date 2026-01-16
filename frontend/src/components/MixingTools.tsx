@@ -13,8 +13,20 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
   const [isAutoMixing, setIsAutoMixing] = useState(false);
   const [fadeTime, setFadeTime] = useState(8); // seconds
   const [syncEnabled, setSyncEnabled] = useState(false);
+  const [drumLoopOn, setDrumLoopOn] = useState(false);
+  const [drumBpm, setDrumBpm] = useState(120);
+  const [drumVolume, setDrumVolume] = useState(60);
 
   const audioEngine = getAudioEngine();
+
+  // Sync drum BPM with playing deck
+  useEffect(() => {
+    if (deckA.isPlaying && deckA.analysis?.bpm) {
+      setDrumBpm(Math.round(deckA.analysis.bpm));
+    } else if (deckB.isPlaying && deckB.analysis?.bpm) {
+      setDrumBpm(Math.round(deckB.analysis.bpm));
+    }
+  }, [deckA.isPlaying, deckB.isPlaying, deckA.analysis?.bpm, deckB.analysis?.bpm]);
 
   const handleCrossfade = (value: number) => {
     setCrossfader(value);
@@ -22,20 +34,54 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
     audioEngine.setCrossfader(value);
   };
 
-  // Auto crossfade from A to B
+  // Toggle drum loop
+  const toggleDrumLoop = async () => {
+    await audioEngine.resume();
+
+    if (drumLoopOn) {
+      audioEngine.stopDrumLoop();
+      setDrumLoopOn(false);
+    } else {
+      audioEngine.setDrumLoopVolume(drumVolume / 100);
+      audioEngine.startDrumLoop(drumBpm);
+      setDrumLoopOn(true);
+    }
+  };
+
+  // Update drum BPM
+  const handleDrumBpmChange = (bpm: number) => {
+    setDrumBpm(bpm);
+    if (drumLoopOn) {
+      audioEngine.setDrumLoopBpm(bpm);
+    }
+  };
+
+  // Update drum volume
+  const handleDrumVolumeChange = (vol: number) => {
+    setDrumVolume(vol);
+    audioEngine.setDrumLoopVolume(vol / 100);
+  };
+
+  // Auto crossfade - FIXED: starts from current position
   const startAutoMix = async (direction: 'AtoB' | 'BtoA') => {
     if (isAutoMixing) return;
 
     setIsAutoMixing(true);
 
-    const startValue = direction === 'AtoB' ? -1 : 1;
     const endValue = direction === 'AtoB' ? 1 : -1;
+    const startValue = crossfader; // Start from current position
+    const totalDistance = Math.abs(endValue - startValue);
+
+    // If already at destination, skip
+    if (totalDistance < 0.05) {
+      setIsAutoMixing(false);
+      return;
+    }
+
     const steps = fadeTime * 20; // 20 updates per second
     const increment = (endValue - startValue) / steps;
 
     let currentValue = startValue;
-    setCrossfader(currentValue);
-    audioEngine.setCrossfader(currentValue);
 
     // Start the target deck if not playing
     if (direction === 'AtoB' && deckB.track && !deckB.isPlaying) {
@@ -51,17 +97,20 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
     const interval = setInterval(() => {
       currentValue += increment;
 
-      if ((direction === 'AtoB' && currentValue >= endValue) ||
-          (direction === 'BtoA' && currentValue <= endValue)) {
+      const reachedEnd = direction === 'AtoB'
+        ? currentValue >= endValue
+        : currentValue <= endValue;
+
+      if (reachedEnd) {
         currentValue = endValue;
         clearInterval(interval);
         setIsAutoMixing(false);
 
-        // Stop the source deck
-        if (direction === 'AtoB') {
+        // Stop the source deck when fully faded
+        if (direction === 'AtoB' && currentValue >= 0.95) {
           audioEngine.stop('A');
           store.setDeckPlaying('A', false);
-        } else {
+        } else if (direction === 'BtoA' && currentValue <= -0.95) {
           audioEngine.stop('B');
           store.setDeckPlaying('B', false);
         }
@@ -116,6 +165,73 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
         )}
       </div>
 
+      {/* Drum Loop Section */}
+      <div className="mb-4 p-3 bg-gray-800/50 rounded-xl">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-orange-400">DRUM LOOP</span>
+            {drumLoopOn && (
+              <span className="flex gap-0.5">
+                <span className="w-1 h-2 bg-orange-500 rounded-full animate-pulse" />
+                <span className="w-1 h-3 bg-orange-500 rounded-full animate-pulse" style={{ animationDelay: '100ms' }} />
+                <span className="w-1 h-2 bg-orange-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
+              </span>
+            )}
+          </div>
+          <button
+            onClick={toggleDrumLoop}
+            className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
+              drumLoopOn
+                ? 'bg-gradient-to-r from-orange-500 to-red-500'
+                : 'bg-gray-700'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${
+                drumLoopOn ? 'left-7' : 'left-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-gray-500">BPM</span>
+              <span className="text-xs font-medium text-white">{drumBpm}</span>
+            </div>
+            <input
+              type="range"
+              min="60"
+              max="180"
+              value={drumBpm}
+              onChange={(e) => handleDrumBpmChange(parseInt(e.target.value))}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #f97316 0%, #f97316 ${((drumBpm - 60) / 120) * 100}%, #374151 ${((drumBpm - 60) / 120) * 100}%, #374151 100%)`,
+              }}
+            />
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-gray-500">Volume</span>
+              <span className="text-xs font-medium text-white">{drumVolume}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={drumVolume}
+              onChange={(e) => handleDrumVolumeChange(parseInt(e.target.value))}
+              className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+              style={{
+                background: `linear-gradient(to right, #f97316 0%, #f97316 ${drumVolume}%, #374151 ${drumVolume}%, #374151 100%)`,
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Crossfader */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
@@ -150,7 +266,7 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       <div className="grid grid-cols-2 gap-2 mb-4">
         <button
           onClick={() => startAutoMix('BtoA')}
-          disabled={!canMix || isAutoMixing || !deckB.isPlaying}
+          disabled={!canMix || isAutoMixing}
           className="flex items-center justify-center gap-2 py-2.5 px-3 bg-violet-500/20 hover:bg-violet-500/30 disabled:bg-gray-800/50 disabled:opacity-50 text-violet-400 disabled:text-gray-500 rounded-xl text-xs font-medium transition-all"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -160,7 +276,7 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
         </button>
         <button
           onClick={() => startAutoMix('AtoB')}
-          disabled={!canMix || isAutoMixing || !deckA.isPlaying}
+          disabled={!canMix || isAutoMixing}
           className="flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-500/20 hover:bg-blue-500/30 disabled:bg-gray-800/50 disabled:opacity-50 text-blue-400 disabled:text-gray-500 rounded-xl text-xs font-medium transition-all"
         >
           Fade to B
@@ -219,9 +335,6 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
           }}
           className="flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-medium transition-all"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
           Center
         </button>
       </div>

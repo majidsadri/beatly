@@ -60,6 +60,12 @@ export class AudioEngine {
   // Transition state
   private transitionInterval: number | null = null;
 
+  // Drum machine state
+  private drumLoopInterval: number | null = null;
+  private drumLoopPlaying: boolean = false;
+  private drumLoopBpm: number = 120;
+  private drumLoopGain!: GainNode;
+
   constructor() {
     this.initContext();
   }
@@ -82,6 +88,12 @@ export class AudioEngine {
 
     this.deckA = this.createDeckNodes();
     this.deckB = this.createDeckNodes();
+
+    // Create drum loop gain node
+    this.drumLoopGain = this.context.createGain();
+    this.drumLoopGain.gain.value = 0.6;
+    this.drumLoopGain.connect(this.masterGain);
+
     this.initialized = true;
 
     // Log initial state
@@ -796,10 +808,173 @@ export class AudioEngine {
     return source;
   }
 
+  // ============ DRUM LOOP METHODS ============
+
+  /**
+   * Play a kick drum sound
+   */
+  private playKick(time: number): void {
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, time);
+    osc.frequency.exponentialRampToValueAtTime(40, time + 0.1);
+
+    gain.gain.setValueAtTime(1, time);
+    gain.gain.exponentialRampToValueAtTime(0.01, time + 0.3);
+
+    osc.connect(gain);
+    gain.connect(this.drumLoopGain);
+
+    osc.start(time);
+    osc.stop(time + 0.3);
+  }
+
+  /**
+   * Play a snare/clap sound
+   */
+  private playSnare(time: number): void {
+    // Noise burst for snare
+    const bufferSize = this.context.sampleRate * 0.1;
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.2));
+    }
+
+    const noise = this.context.createBufferSource();
+    noise.buffer = buffer;
+
+    const noiseGain = this.context.createGain();
+    noiseGain.gain.setValueAtTime(0.8, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+
+    const filter = this.context.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 1000;
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.drumLoopGain);
+
+    noise.start(time);
+  }
+
+  /**
+   * Play a hi-hat sound
+   */
+  private playHiHat(time: number): void {
+    const bufferSize = this.context.sampleRate * 0.05;
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.1));
+    }
+
+    const noise = this.context.createBufferSource();
+    noise.buffer = buffer;
+
+    const noiseGain = this.context.createGain();
+    noiseGain.gain.setValueAtTime(0.3, time);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, time + 0.05);
+
+    const filter = this.context.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 5000;
+
+    noise.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.drumLoopGain);
+
+    noise.start(time);
+  }
+
+  /**
+   * Start the drum loop
+   */
+  startDrumLoop(bpm?: number): void {
+    if (this.drumLoopPlaying) return;
+
+    if (bpm) this.drumLoopBpm = bpm;
+
+    this.drumLoopPlaying = true;
+    const beatInterval = 60 / this.drumLoopBpm; // seconds per beat
+    let beatCount = 0;
+
+    const scheduleNextBeat = () => {
+      if (!this.drumLoopPlaying) return;
+
+      const time = this.context.currentTime + 0.05; // small lookahead
+
+      // 4/4 pattern: Kick on 1 and 3, Snare on 2 and 4, Hi-hat on every beat
+      const beatInBar = beatCount % 4;
+
+      if (beatInBar === 0 || beatInBar === 2) {
+        this.playKick(time);
+      }
+      if (beatInBar === 1 || beatInBar === 3) {
+        this.playSnare(time);
+      }
+      this.playHiHat(time);
+
+      beatCount++;
+
+      this.drumLoopInterval = window.setTimeout(scheduleNextBeat, beatInterval * 1000);
+    };
+
+    scheduleNextBeat();
+  }
+
+  /**
+   * Stop the drum loop
+   */
+  stopDrumLoop(): void {
+    this.drumLoopPlaying = false;
+    if (this.drumLoopInterval) {
+      clearTimeout(this.drumLoopInterval);
+      this.drumLoopInterval = null;
+    }
+  }
+
+  /**
+   * Check if drum loop is playing
+   */
+  isDrumLoopPlaying(): boolean {
+    return this.drumLoopPlaying;
+  }
+
+  /**
+   * Set drum loop BPM
+   */
+  setDrumLoopBpm(bpm: number): void {
+    this.drumLoopBpm = bpm;
+    // If playing, restart with new BPM
+    if (this.drumLoopPlaying) {
+      this.stopDrumLoop();
+      this.startDrumLoop(bpm);
+    }
+  }
+
+  /**
+   * Get current drum loop BPM
+   */
+  getDrumLoopBpm(): number {
+    return this.drumLoopBpm;
+  }
+
+  /**
+   * Set drum loop volume
+   */
+  setDrumLoopVolume(volume: number): void {
+    this.drumLoopGain.gain.setTargetAtTime(volume, this.context.currentTime, 0.01);
+  }
+
   dispose(): void {
     if (this.transitionInterval) {
       clearInterval(this.transitionInterval);
     }
+    this.stopDrumLoop();
     this.stop('A');
     this.stop('B');
     this.context.close();
