@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine } from '../audio/AudioEngine';
 
@@ -14,9 +14,16 @@ const DRUM_PATTERNS = [
   { name: 'Techno', icon: '⚡', description: 'Driving kick pattern' },
 ];
 
+// Transition types for auto mix
+const TRANSITION_TYPES = [
+  { name: 'Smooth', icon: '〰️', description: 'Gradual crossfade' },
+  { name: 'Cut', icon: '✂️', description: 'Quick cut transition' },
+  { name: 'EQ Swap', icon: '🎚️', description: 'Bass swap transition' },
+];
+
 export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) => {
   const store = useStore();
-  const { deckA, deckB } = store;
+  const { deckA, deckB, tracks } = store;
   const [crossfader, setCrossfader] = useState(0);
   const [isAutoMixing, setIsAutoMixing] = useState(false);
   const [fadeTime, setFadeTime] = useState(8); // seconds
@@ -27,6 +34,14 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
   const [drumPattern, setDrumPattern] = useState(0);
   const [masterTime, setMasterTime] = useState({ current: 0, duration: 0 });
   const masterTimelineRef = useRef<HTMLDivElement>(null);
+
+  // Enhanced Auto Mix state
+  const [autoMixEnabled, setAutoMixEnabled] = useState(false);
+  const [transitionType, setTransitionType] = useState(0);
+  const [transitionTrigger, setTransitionTrigger] = useState(30); // seconds before end
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [nextTrackIndex, setNextTrackIndex] = useState(0);
+  const autoMixRef = useRef<{ interval: number | null; nextDeck: 'A' | 'B' }>({ interval: null, nextDeck: 'B' });
 
   const audioEngine = getAudioEngine();
 
@@ -146,7 +161,7 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
   };
 
   // Sync BPM between decks
-  const syncBPM = () => {
+  const syncBPM = useCallback(() => {
     if (!deckA.analysis?.bpm || !deckB.analysis?.bpm) return;
 
     const targetBpm = deckA.isPlaying ? deckA.analysis.bpm : deckB.analysis.bpm;
@@ -160,7 +175,138 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
     }
 
     setSyncEnabled(true);
-  };
+  }, [deckA.analysis?.bpm, deckB.analysis?.bpm, deckA.isPlaying, audioEngine, store]);
+
+  // Load and start next track on the inactive deck
+  const loadNextTrack = useCallback(async (targetDeck: 'A' | 'B') => {
+    if (tracks.length === 0) return false;
+
+    // Find next track that's not currently playing
+    const currentTrackId = targetDeck === 'A' ? deckB.track?.id : deckA.track?.id;
+    let nextIdx = nextTrackIndex;
+
+    // Find a track that's not the current one
+    for (let i = 0; i < tracks.length; i++) {
+      const idx = (nextTrackIndex + i) % tracks.length;
+      if (tracks[idx].id !== currentTrackId) {
+        nextIdx = idx;
+        break;
+      }
+    }
+
+    const nextTrack = tracks[nextIdx];
+    if (!nextTrack) return false;
+
+    // Update next track index for future use
+    setNextTrackIndex((nextIdx + 1) % tracks.length);
+
+    // Load the track
+    const streamUrl = `/api/uploads/tracks/${nextTrack.id}/stream`;
+    audioEngine.clearTrackCache(nextTrack.id);
+    await audioEngine.loadTrack(nextTrack.id, streamUrl, true);
+
+    // Set up deck
+    store.setDeckTrack(targetDeck, nextTrack);
+
+    // Try to get analysis
+    try {
+      const response = await fetch(`/api/uploads/tracks/${nextTrack.id}/analyze`, { method: 'POST' });
+      if (response.ok) {
+        const analysis = await response.json();
+        store.cacheAnalysis(nextTrack.id, analysis);
+        store.setDeckAnalysis(targetDeck, analysis);
+      }
+    } catch {
+      // Analysis optional
+    }
+
+    return true;
+  }, [tracks, nextTrackIndex, deckA.track?.id, deckB.track?.id, audioEngine, store]);
+
+  // Start track on a deck
+  const startDeck = useCallback(async (deck: 'A' | 'B') => {
+    const deckState = deck === 'A' ? deckA : deckB;
+    if (!deckState.track) return;
+
+    await audioEngine.resume();
+    await audioEngine.play(deck, deckState.track.id, 0, deckState.playbackRate);
+    store.setDeckPlaying(deck, true);
+  }, [deckA, deckB, audioEngine, store]);
+
+  // Perform the auto mix transition
+  const performAutoMixTransition = useCallback(async () => {
+    if (isAutoMixing) return;
+
+    const activeDeck = deckA.isPlaying && !deckB.isPlaying ? 'A' : deckB.isPlaying && !deckA.isPlaying ? 'B' : null;
+    if (!activeDeck) return;
+
+    const targetDeck = activeDeck === 'A' ? 'B' : 'A';
+
+    // Load next track if needed
+    const targetState = targetDeck === 'A' ? deckA : deckB;
+    if (!targetState.track) {
+      const loaded = await loadNextTrack(targetDeck);
+      if (!loaded) return;
+    }
+
+    // Start the target deck
+    await startDeck(targetDeck);
+
+    // Sync BPM if both have analysis
+    if (deckA.analysis?.bpm && deckB.analysis?.bpm) {
+      syncBPM();
+    }
+
+    // Start the crossfade
+    const direction = activeDeck === 'A' ? 'AtoB' : 'BtoA';
+    startAutoMix(direction);
+
+    // Update ref for next transition
+    autoMixRef.current.nextDeck = activeDeck;
+  }, [isAutoMixing, deckA, deckB, loadNextTrack, startDeck, syncBPM]);
+
+  // Monitor playback for auto mix trigger
+  useEffect(() => {
+    if (!autoMixEnabled) {
+      setCountdown(null);
+      return;
+    }
+
+    const checkInterval = setInterval(() => {
+      // Determine which deck is active (solo playing)
+      const activeDeck = deckA.isPlaying && !deckB.isPlaying ? 'A' : deckB.isPlaying && !deckA.isPlaying ? 'B' : null;
+
+      if (!activeDeck || isAutoMixing) {
+        setCountdown(null);
+        return;
+      }
+
+      const deckState = activeDeck === 'A' ? deckA : deckB;
+      const currentTime = audioEngine.getCurrentTime(activeDeck);
+      const duration = deckState.track?.duration ? deckState.track.duration / 1000 : 0;
+
+      if (duration <= 0) {
+        setCountdown(null);
+        return;
+      }
+
+      const timeRemaining = duration - currentTime;
+      const triggerTime = transitionTrigger + fadeTime;
+
+      if (timeRemaining <= triggerTime && timeRemaining > 0) {
+        setCountdown(Math.ceil(timeRemaining - fadeTime));
+
+        // Trigger transition when countdown reaches 0
+        if (timeRemaining <= fadeTime + 1 && !isAutoMixing) {
+          performAutoMixTransition();
+        }
+      } else {
+        setCountdown(null);
+      }
+    }, 500);
+
+    return () => clearInterval(checkInterval);
+  }, [autoMixEnabled, deckA, deckB, isAutoMixing, transitionTrigger, fadeTime, audioEngine, performAutoMixTransition]);
 
   // For auto-mix, both decks should be playing
   const canMix = deckA.track && deckB.track;
@@ -321,6 +467,147 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
             </div>
           </div>
         </div>
+      </div>
+
+      {/* AUTO MIX Control Panel */}
+      <div className={`mb-4 p-3 rounded-xl border transition-all ${
+        autoMixEnabled
+          ? 'bg-gradient-to-br from-green-900/30 to-emerald-900/30 border-green-500/30'
+          : 'bg-gray-800/50 border-gray-700/50'
+      }`}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🎛️</span>
+            <div>
+              <span className="text-xs font-medium text-white">AUTO MIX</span>
+              {autoMixEnabled && (
+                <span className="ml-2 text-[10px] text-green-400 bg-green-500/20 px-1.5 py-0.5 rounded">
+                  ACTIVE
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={() => setAutoMixEnabled(!autoMixEnabled)}
+            className={`relative w-12 h-6 rounded-full transition-all ${
+              autoMixEnabled ? 'bg-green-500' : 'bg-gray-600'
+            }`}
+          >
+            <span
+              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow ${
+                autoMixEnabled ? 'left-7' : 'left-1'
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Countdown display */}
+        {autoMixEnabled && countdown !== null && countdown > 0 && (
+          <div className="mb-3 p-2 bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-lg border border-yellow-500/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+                <span className="text-xs text-yellow-400">Transition in</span>
+              </div>
+              <span className="text-lg font-bold text-yellow-400">{countdown}s</span>
+            </div>
+            <div className="mt-2 h-1 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 transition-all"
+                style={{ width: `${Math.max(0, 100 - (countdown / transitionTrigger) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Transition happening */}
+        {isAutoMixing && (
+          <div className="mb-3 p-2 bg-gradient-to-r from-violet-500/20 to-blue-500/20 rounded-lg border border-violet-500/30">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-0.5">
+                {[...Array(5)].map((_, i) => (
+                  <span
+                    key={i}
+                    className="w-1 bg-violet-500 rounded-full animate-pulse"
+                    style={{
+                      height: `${8 + Math.random() * 8}px`,
+                      animationDelay: `${i * 100}ms`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-xs text-violet-400 font-medium">Mixing in progress...</span>
+            </div>
+          </div>
+        )}
+
+        {/* Settings when enabled */}
+        {autoMixEnabled && (
+          <div className="space-y-3">
+            {/* Transition type */}
+            <div>
+              <span className="text-[10px] text-gray-500 mb-1.5 block">Transition Style</span>
+              <div className="grid grid-cols-3 gap-1">
+                {TRANSITION_TYPES.map((type, index) => (
+                  <button
+                    key={type.name}
+                    onClick={() => setTransitionType(index)}
+                    className={`py-2 px-1 rounded-lg text-center transition-all ${
+                      transitionType === index
+                        ? 'bg-green-500/30 border border-green-500/50'
+                        : 'bg-gray-700/50 hover:bg-gray-700 border border-transparent'
+                    }`}
+                    title={type.description}
+                  >
+                    <span className="text-base block">{type.icon}</span>
+                    <span className={`text-[8px] block ${transitionType === index ? 'text-green-400' : 'text-gray-500'}`}>
+                      {type.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Trigger timing */}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-gray-500">Start transition before end</span>
+                <span className="text-xs font-medium text-white">{transitionTrigger}s</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="60"
+                step="5"
+                value={transitionTrigger}
+                onChange={(e) => setTransitionTrigger(parseInt(e.target.value))}
+                className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, #10b981 0%, #10b981 ${((transitionTrigger - 10) / 50) * 100}%, #374151 ${((transitionTrigger - 10) / 50) * 100}%, #374151 100%)`,
+                }}
+              />
+            </div>
+
+            {/* Next track preview */}
+            {tracks.length > 1 && (
+              <div className="p-2 bg-gray-700/30 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-gray-500">Next up:</span>
+                  <span className="text-[10px] text-gray-400 truncate max-w-[150px]">
+                    {tracks[nextTrackIndex]?.title || 'No track'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Quick tip when disabled */}
+        {!autoMixEnabled && (
+          <p className="text-[10px] text-gray-500 text-center">
+            Enable to automatically mix between tracks
+          </p>
+        )}
       </div>
 
       {/* Deck Status */}

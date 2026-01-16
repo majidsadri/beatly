@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
+import { getAudioEngine } from '../audio/AudioEngine';
 import type { SoundCloudTrack } from '../types';
 
 interface UploadedTrack {
@@ -77,6 +78,10 @@ export const FileUpload: React.FC = () => {
     }
 
     if (uploadedTracks.length > 0) {
+      // Clear audio engine cache to prevent playing old cached audio
+      const audioEngine = getAudioEngine();
+      audioEngine.clearCache();
+
       // Create a fake playlist for the uploaded tracks
       selectPlaylist({
         id: -1,

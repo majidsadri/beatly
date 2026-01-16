@@ -86,6 +86,10 @@ async def upload_track(request: Request, file: UploadFile = File(...)) -> Upload
     # Extract title from filename (remove extension)
     title = Path(file.filename).stem
 
+    # Get file size to verify upload
+    file_size = file_path.stat().st_size
+    print(f"Uploaded track {track_id}: {file.filename} ({file_size} bytes) -> {file_path}")
+
     # Store in database
     track_data = {
         "id": track_id,
@@ -157,14 +161,16 @@ async def stream_track(track_id: int):
     }
     media_type = media_types.get(ext, "audio/mpeg")
 
-    # Add headers for iOS Safari compatibility
+    # Add headers to prevent any caching
     return FileResponse(
         path=file_path,
         media_type=media_type,
         filename=track["filename"],
         headers={
             "Accept-Ranges": "bytes",
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
         }
     )
 

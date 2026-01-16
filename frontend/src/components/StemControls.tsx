@@ -127,7 +127,7 @@ export const StemControls: React.FC<StemControlsProps> = ({
     const newEnabled = !stemsEnabled;
 
     if (newEnabled) {
-      const loaded = await audioEngine.loadAllStems(trackId);
+      const loaded = await audioEngine.loadAllStems(trackId, true); // forceReload=true
       if (!loaded) {
         setError('Failed to load stems');
         return;
