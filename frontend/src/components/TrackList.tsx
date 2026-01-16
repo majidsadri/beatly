@@ -69,7 +69,6 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
   const [stemEnabled, setStemEnabled] = useState<Record<number, StemEnabledState>>({});
   const [stemVolumes, setStemVolumes] = useState<Record<number, StemVolumeState>>({});
   const [loadingStems, setLoadingStems] = useState<number | null>(null);
-  const [expandedStems, setExpandedStems] = useState<Record<number, boolean>>({});
 
   const audioEngine = getAudioEngine();
 
@@ -555,22 +554,6 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
     }
   };
 
-  // Set individual stem volume
-  const setStemVolumeValue = (trackId: number, stemName: StemName, volume: number) => {
-    const currentVolumes = stemVolumes[trackId] || { drums: 1, bass: 1, vocals: 1, other: 1 };
-    const currentEnabled = stemEnabled[trackId] || { drums: true, bass: true, vocals: true, other: true };
-
-    setStemVolumes(prev => ({
-      ...prev,
-      [trackId]: { ...currentVolumes, [stemName]: volume }
-    }));
-
-    // Update audio engine if stem is enabled and playing
-    const playState = playStates[trackId];
-    if (playState?.isPlaying && playState.deck && currentEnabled[stemName]) {
-      audioEngine.setStemVolume(playState.deck, stemName, volume);
-    }
-  };
 
   // Apply a preset configuration
   const applyPreset = (trackId: number, preset: typeof STEM_PRESETS[0]) => {
@@ -627,12 +610,6 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
     }
   }, [audioEngine, playStates]);
 
-  // Get current stem volume (returns 0 if muted)
-  const getStemVolume = (trackId: number, stemName: StemName): number => {
-    const enabled = stemEnabled[trackId]?.[stemName] ?? true;
-    if (!enabled) return 0;
-    return stemVolumes[trackId]?.[stemName] ?? 1;
-  };
 
   // Check if stem is enabled (not muted)
   const isStemEnabled = (trackId: number, stemName: StemName): boolean => {
@@ -647,13 +624,6 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       Object.entries(state).filter(([_, v]) => v).length === 1;
   };
 
-  // Toggle expanded stem controls
-  const toggleExpandedStems = (trackId: number) => {
-    setExpandedStems(prev => ({
-      ...prev,
-      [trackId]: !prev[trackId]
-    }));
-  };
 
   return (
     <div className="bg-gradient-to-b from-gray-900/90 to-gray-900/70 rounded-2xl border border-gray-800/50 overflow-hidden">
@@ -698,73 +668,122 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
         </div>
       </div>
 
-      {/* DJ Mixer Panel - Shows when tracks are playing */}
+      {/* Auto Mix Bar - Common timeline for all playing tracks */}
       {Object.values(playStates).some(s => s.isPlaying) && (
-        <div className="p-3 border-b border-gray-800/50 bg-gradient-to-r from-violet-500/10 via-transparent to-blue-500/10">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              {/* Channel A */}
+        <div className="p-4 border-b border-gray-800/50 bg-gradient-to-r from-violet-900/30 via-gray-900/50 to-blue-900/30">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Auto Mix</span>
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 rounded-full">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-[9px] text-green-400">LIVE</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {Object.values(playStates).filter(s => s.isPlaying).length === 2 && (
+                <span className="text-[10px] text-violet-400">2 tracks mixing</span>
+              )}
+            </div>
+          </div>
+
+          {/* Combined Timeline */}
+          <div className="mb-3">
+            <div className="relative h-4 bg-gray-800/80 rounded-full overflow-hidden">
+              {/* Deck A progress */}
+              {(() => {
+                const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
+                if (trackA) {
+                  const progress = trackA[1].duration > 0 ? (trackA[1].currentTime / trackA[1].duration) * 100 : 0;
+                  return (
+                    <div
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-violet-600 to-violet-400 transition-all duration-100"
+                      style={{ width: `${progress}%`, opacity: 0.8 }}
+                    />
+                  );
+                }
+                return null;
+              })()}
+              {/* Deck B progress overlay */}
+              {(() => {
+                const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
+                if (trackB) {
+                  const progress = trackB[1].duration > 0 ? (trackB[1].currentTime / trackB[1].duration) * 100 : 0;
+                  return (
+                    <div
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-100"
+                      style={{ width: `${progress}%`, opacity: 0.5 }}
+                    />
+                  );
+                }
+                return null;
+              })()}
+              {/* Center line */}
+              <div className="absolute top-0 left-1/2 w-0.5 h-full bg-gray-600" />
+            </div>
+
+            {/* Time display */}
+            <div className="flex justify-between mt-1">
+              {(() => {
+                const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
+                const time = trackA ? trackA[1].currentTime : 0;
+                const mins = Math.floor(time / 60);
+                const secs = Math.floor(time % 60);
+                return <span className="text-[10px] text-violet-400">{mins}:{secs.toString().padStart(2, '0')}</span>;
+              })()}
+              <span className="text-[9px] text-gray-500">MIX TIMELINE</span>
+              {(() => {
+                const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
+                const time = trackB ? trackB[1].currentTime : 0;
+                const mins = Math.floor(time / 60);
+                const secs = Math.floor(time % 60);
+                return <span className="text-[10px] text-blue-400">{mins}:{secs.toString().padStart(2, '0')}</span>;
+              })()}
+            </div>
+          </div>
+
+          {/* Deck Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* Deck A */}
+            <div className={`p-2 rounded-lg border ${
+              Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A')
+                ? 'bg-violet-500/10 border-violet-500/30'
+                : 'bg-gray-800/30 border-gray-700/30'
+            }`}>
               <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-violet-500 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-violet-500/30">
-                  A
-                </span>
-                <div className="text-xs">
+                <span className="w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center text-[10px] font-bold text-white">A</span>
+                <div className="flex-1 min-w-0">
                   {(() => {
                     const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
                     if (trackA) {
                       const track = tracks.find(t => t.id === Number(trackA[0]));
-                      return (
-                        <div>
-                          <p className="text-white font-medium truncate max-w-[120px]">{track?.title || 'Unknown'}</p>
-                          <p className="text-violet-400">{Math.round((trackA[1].volume ?? 1) * 100)}%</p>
-                        </div>
-                      );
+                      return <p className="text-[10px] text-white font-medium truncate">{track?.title || 'Unknown'}</p>;
                     }
-                    return <p className="text-gray-500">Empty</p>;
-                  })()}
-                </div>
-              </div>
-
-              {/* Mix Indicator */}
-              <div className="flex flex-col items-center">
-                <span className="text-[10px] text-gray-500 uppercase">Mix</span>
-                <div className="flex gap-0.5">
-                  <span className="w-1 h-4 bg-violet-500 rounded-full animate-pulse" />
-                  <span className="w-1 h-6 bg-violet-500 rounded-full animate-pulse" style={{ animationDelay: '100ms' }} />
-                  <span className="w-1 h-3 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
-                  <span className="w-1 h-5 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '300ms' }} />
-                </div>
-              </div>
-
-              {/* Channel B */}
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white shadow-lg shadow-blue-500/30">
-                  B
-                </span>
-                <div className="text-xs">
-                  {(() => {
-                    const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
-                    if (trackB) {
-                      const track = tracks.find(t => t.id === Number(trackB[0]));
-                      return (
-                        <div>
-                          <p className="text-white font-medium truncate max-w-[120px]">{track?.title || 'Unknown'}</p>
-                          <p className="text-blue-400">{Math.round((trackB[1].volume ?? 1) * 100)}%</p>
-                        </div>
-                      );
-                    }
-                    return <p className="text-gray-500">Empty</p>;
+                    return <p className="text-[10px] text-gray-500">No track</p>;
                   })()}
                 </div>
               </div>
             </div>
 
-            {/* Status */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 rounded-lg">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-xs text-gray-400">
-                {Object.values(playStates).filter(s => s.isPlaying).length === 2 ? 'Mixing' : 'Playing'}
-              </span>
+            {/* Deck B */}
+            <div className={`p-2 rounded-lg border ${
+              Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B')
+                ? 'bg-blue-500/10 border-blue-500/30'
+                : 'bg-gray-800/30 border-gray-700/30'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white">B</span>
+                <div className="flex-1 min-w-0">
+                  {(() => {
+                    const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
+                    if (trackB) {
+                      const track = tracks.find(t => t.id === Number(trackB[0]));
+                      return <p className="text-[10px] text-white font-medium truncate">{track?.title || 'Unknown'}</p>;
+                    }
+                    return <p className="text-[10px] text-gray-500">No track</p>;
+                  })()}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -940,165 +959,70 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                     </button>
                   </div>
 
-                  {/* Stem Controls - Only show when stems are ready */}
+                  {/* Stem Controls - Compact Square Grid */}
                   {hasStemsReady && (
-                    <div className="px-3 pb-3 pt-0">
-                      {/* Compact Stem Controls */}
-                      <div className="p-3 bg-gradient-to-r from-gray-800/80 to-gray-800/40 rounded-xl border border-gray-700/50">
-                        {/* Header with expand toggle */}
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Stems</span>
-                            <div className="flex gap-0.5">
-                              {STEMS.map(stem => (
-                                <div
-                                  key={stem.name}
-                                  className="w-1.5 h-3 rounded-full transition-all"
-                                  style={{
-                                    backgroundColor: isStemEnabled(track.id, stem.name) ? stem.color : '#374151',
-                                    opacity: getStemVolume(track.id, stem.name),
-                                  }}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => enableAllStems(track.id)}
-                              className="text-[10px] text-gray-500 hover:text-green-400 transition-colors"
-                              title="Reset all stems to full volume"
-                            >
-                              Reset
-                            </button>
-                            <button
-                              onClick={() => toggleExpandedStems(track.id)}
-                              className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
-                            >
-                              {expandedStems[track.id] ? 'Less' : 'More'}
-                              <svg
-                                className={`w-3 h-3 transition-transform ${expandedStems[track.id] ? 'rotate-180' : ''}`}
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Quick Stem Buttons */}
-                        <div className="flex items-center gap-1.5 mb-2">
+                    <div className="px-3 pb-3 pt-1">
+                      <div className="flex items-start gap-2">
+                        {/* 2x2 Stem Grid */}
+                        <div className="grid grid-cols-2 gap-1.5">
                           {STEMS.map((stem) => {
                             const enabled = isStemEnabled(track.id, stem.name);
                             const soloed = isStemSoloed(track.id, stem.name);
-                            const volume = getStemVolume(track.id, stem.name);
 
                             return (
                               <button
                                 key={stem.name}
                                 onClick={() => toggleStem(track.id, stem.name)}
                                 onDoubleClick={() => soloStem(track.id, stem.name)}
-                                className={`relative flex-1 h-12 rounded-lg flex flex-col items-center justify-center transition-all ${
-                                  enabled ? 'hover:scale-[1.02]' : 'opacity-50 hover:opacity-70'
-                                } ${soloed ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''}`}
+                                className={`relative w-14 h-14 rounded-lg flex flex-col items-center justify-center transition-all ${
+                                  enabled
+                                    ? 'shadow-lg hover:scale-105'
+                                    : 'opacity-40 hover:opacity-70'
+                                } ${soloed ? 'ring-2 ring-white' : ''}`}
                                 style={{
-                                  backgroundColor: enabled ? `${stem.color}25` : '#1f2937',
-                                  borderLeft: `3px solid ${enabled ? stem.color : '#374151'}`,
+                                  backgroundColor: enabled ? `${stem.color}40` : '#1f2937',
+                                  border: `2px solid ${enabled ? stem.color : '#374151'}`,
                                 }}
-                                title={`${stem.fullName} - Click to mute/unmute, Double-click to solo`}
+                                title={`${stem.fullName} - Click to ${enabled ? 'disable' : 'enable'}, Double-click to solo`}
                               >
                                 <span className="text-lg">{stem.icon}</span>
                                 <span
-                                  className="text-[9px] font-medium"
+                                  className="text-[7px] font-bold uppercase"
                                   style={{ color: enabled ? stem.color : '#6b7280' }}
                                 >
-                                  {stem.fullName}
+                                  {stem.label}
                                 </span>
-                                {/* Volume indicator bar */}
-                                <div
-                                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-lg transition-all"
-                                  style={{
-                                    backgroundColor: stem.color,
-                                    opacity: volume,
-                                    transform: `scaleX(${volume})`,
-                                    transformOrigin: 'left',
-                                  }}
+                                {/* ON/OFF indicator */}
+                                <span
+                                  className={`absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full ${
+                                    enabled ? 'bg-green-500' : 'bg-gray-600'
+                                  }`}
                                 />
                               </button>
                             );
                           })}
                         </div>
 
-                        {/* Preset Buttons */}
-                        <div className="flex gap-1 flex-wrap">
-                          {STEM_PRESETS.map((preset) => (
+                        {/* Quick Actions */}
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => enableAllStems(track.id)}
+                            className="px-2 py-1 bg-gray-700/50 hover:bg-green-500/20 text-[8px] text-gray-400 hover:text-green-400 rounded transition-all"
+                            title="Enable all stems"
+                          >
+                            ALL
+                          </button>
+                          {STEM_PRESETS.slice(1, 4).map((preset) => (
                             <button
                               key={preset.name}
                               onClick={() => applyPreset(track.id, preset)}
-                              className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 text-[9px] text-gray-400 hover:text-white rounded-md transition-all flex items-center gap-1"
+                              className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 text-[8px] text-gray-400 hover:text-white rounded transition-all"
                               title={preset.label}
                             >
-                              <span>{preset.icon}</span>
-                              <span>{preset.label}</span>
+                              {preset.icon}
                             </button>
                           ))}
                         </div>
-
-                        {/* Expanded Controls - Volume Sliders */}
-                        {expandedStems[track.id] && (
-                          <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2">
-                            {STEMS.map((stem) => {
-                              const enabled = isStemEnabled(track.id, stem.name);
-                              const volume = stemVolumes[track.id]?.[stem.name] ?? 1;
-
-                              return (
-                                <div key={stem.name} className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => toggleStem(track.id, stem.name)}
-                                    className={`w-6 h-6 rounded flex items-center justify-center text-sm transition-all ${
-                                      enabled ? '' : 'opacity-40'
-                                    }`}
-                                    style={{
-                                      backgroundColor: enabled ? `${stem.color}30` : '#1f2937',
-                                    }}
-                                  >
-                                    {stem.icon}
-                                  </button>
-                                  <span
-                                    className="text-[10px] w-12 font-medium"
-                                    style={{ color: enabled ? stem.color : '#6b7280' }}
-                                  >
-                                    {stem.fullName}
-                                  </span>
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="1"
-                                    step="0.05"
-                                    value={volume}
-                                    onChange={(e) => setStemVolumeValue(track.id, stem.name, parseFloat(e.target.value))}
-                                    disabled={!enabled}
-                                    className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer disabled:opacity-30"
-                                    style={{
-                                      background: enabled
-                                        ? `linear-gradient(to right, ${stem.color} 0%, ${stem.color} ${volume * 100}%, #374151 ${volume * 100}%, #374151 100%)`
-                                        : '#374151',
-                                    }}
-                                  />
-                                  <span className="text-[10px] text-gray-500 w-8 text-right">
-                                    {enabled ? `${Math.round(volume * 100)}%` : 'OFF'}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-
-                        {/* Hint */}
-                        <p className="text-[8px] text-gray-600 mt-2 text-center">
-                          Click stem to mute • Double-click to solo • Use presets for quick mixing
-                        </p>
                       </div>
                     </div>
                   )}
