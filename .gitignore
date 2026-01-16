@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Cache
+.cache/
+cache/
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+
+# Python
+venv/
+.venv/
+*.py[cod]
+*$py.class
+
+# Audio cache (can be large)
+backend/cache/
+backend/cache/audio/
+backend/cache/stems/
+backend/cache/analysis/
+
+# Temporary files
+*.tmp
+*.temp
