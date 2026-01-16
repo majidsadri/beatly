@@ -56,9 +56,10 @@ export const DJDeck: React.FC<DJDeckProps> = ({ deck }) => {
       store.setDeckTrack(deck, track);
       store.setDeckPlaying(deck, false);
 
-      // Load audio from local uploads
+      // Load audio from local uploads (force reload to prevent stale cache)
       const streamUrl = getLocalStreamUrl(track.id);
-      await audioEngine.loadTrack(track.id, streamUrl);
+      audioEngine.clearTrackCache(track.id);
+      await audioEngine.loadTrack(track.id, streamUrl, true);
 
       // Check if we have analysis cached
       const cachedAnalysis = store.getAnalysis(track.id);

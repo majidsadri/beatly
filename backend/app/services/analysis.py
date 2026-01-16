@@ -306,8 +306,9 @@ async def separate_stems(track_id: int, audio_path: Path) -> dict:
                 device = "cpu"
 
             # Run in separate process to avoid blocking
+            import sys
             cmd = [
-                "python", "-m", "demucs.separate",
+                sys.executable, "-m", "demucs.separate",
                 "-n", settings.demucs_model,
                 "-d", device,
                 "-o", str(stem_dir.parent),

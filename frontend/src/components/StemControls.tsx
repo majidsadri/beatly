@@ -109,7 +109,7 @@ export const StemControls: React.FC<StemControlsProps> = ({
         setProgress(100);
         setStemsAvailable(true);
         onStemsReady(true);
-        await audioEngine.loadAllStems(trackId);
+        await audioEngine.loadAllStems(trackId, true); // forceReload=true
       } else if (data.status === 'error') {
         setError(data.error || 'Separation failed');
       }

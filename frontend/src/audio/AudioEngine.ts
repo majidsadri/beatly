@@ -328,7 +328,16 @@ export class AudioEngine {
     return this.initialized && this.context.state === 'running';
   }
 
-  async loadTrack(trackId: number, url: string): Promise<void> {
+  async loadTrack(trackId: number, url: string, forceReload: boolean = false): Promise<void> {
+    // Clear cache if forcing reload
+    if (forceReload && this.buffers.has(trackId)) {
+      this.buffers.delete(trackId);
+      // Also clear stem buffers for this track
+      for (const stemName of ['drums', 'bass', 'vocals', 'other'] as StemName[]) {
+        this.stemBuffers.delete(`${trackId}-${stemName}`);
+      }
+    }
+
     if (this.buffers.has(trackId)) return;
 
     // Ensure context is initialized
@@ -336,7 +345,9 @@ export class AudioEngine {
       this.initContext();
     }
 
-    const response = await fetch(url);
+    // Add cache-busting parameter to prevent browser caching issues
+    const cacheBustUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const response = await fetch(cacheBustUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch track: ${response.statusText}`);
     }
@@ -355,8 +366,13 @@ export class AudioEngine {
     this.buffers.set(trackId, audioBuffer);
   }
 
-  async loadStem(trackId: number, stemName: StemName, url: string): Promise<void> {
+  async loadStem(trackId: number, stemName: StemName, url: string, forceReload: boolean = false): Promise<void> {
     const key = `${trackId}-${stemName}`;
+
+    if (forceReload && this.stemBuffers.has(key)) {
+      this.stemBuffers.delete(key);
+    }
+
     if (this.stemBuffers.has(key)) return;
 
     // Ensure context is initialized
@@ -364,7 +380,9 @@ export class AudioEngine {
       this.initContext();
     }
 
-    const response = await fetch(url);
+    // Add cache-busting parameter
+    const cacheBustUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const response = await fetch(cacheBustUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch stem: ${response.statusText}`);
     }
@@ -386,14 +404,14 @@ export class AudioEngine {
   /**
    * Load all stems for a track
    */
-  async loadAllStems(trackId: number): Promise<boolean> {
+  async loadAllStems(trackId: number, forceReload: boolean = false): Promise<boolean> {
     const stemNames: StemName[] = ['drums', 'bass', 'vocals', 'other'];
     let allLoaded = true;
 
     for (const stemName of stemNames) {
       try {
         const url = `/api/uploads/tracks/${trackId}/stems/${stemName}`;
-        await this.loadStem(trackId, stemName, url);
+        await this.loadStem(trackId, stemName, url, forceReload);
       } catch (err) {
         console.warn(`Failed to load stem ${stemName} for track ${trackId}:`, err);
         allLoaded = false;
@@ -409,6 +427,25 @@ export class AudioEngine {
   hasStemsLoaded(trackId: number): boolean {
     const stemNames: StemName[] = ['drums', 'bass', 'vocals', 'other'];
     return stemNames.every(name => this.stemBuffers.has(`${trackId}-${name}`));
+  }
+
+  /**
+   * Clear all cached audio buffers
+   */
+  clearCache(): void {
+    this.buffers.clear();
+    this.stemBuffers.clear();
+    console.log('AudioEngine cache cleared');
+  }
+
+  /**
+   * Clear cache for a specific track
+   */
+  clearTrackCache(trackId: number): void {
+    this.buffers.delete(trackId);
+    for (const stemName of ['drums', 'bass', 'vocals', 'other'] as StemName[]) {
+      this.stemBuffers.delete(`${trackId}-${stemName}`);
+    }
   }
 
   getBuffer(trackId: number): AudioBuffer | undefined {

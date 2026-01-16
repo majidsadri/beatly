@@ -18,8 +18,11 @@ function App() {
     store.setDeckPlaying(deck, false);
     store.setDeckCurrentTime(deck, 0);
 
+    // Clear any cached audio for this track ID to ensure fresh load
+    audioEngine.clearTrackCache(track.id);
+
     const streamUrl = `/api/uploads/tracks/${track.id}/stream`;
-    await audioEngine.loadTrack(track.id, streamUrl);
+    await audioEngine.loadTrack(track.id, streamUrl, true); // forceReload=true
 
     try {
       const response = await fetch(`/api/uploads/tracks/${track.id}/analyze`, { method: 'POST' });

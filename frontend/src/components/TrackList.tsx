@@ -306,12 +306,10 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
 
       const useDeck = deck || 'A';
 
-      // Load track
+      // Load track (always force reload to prevent stale cache issues)
       const streamUrl = `/api/uploads/tracks/${track.id}/stream`;
-      const buffer = audioEngine.getBuffer(track.id);
-      if (!buffer) {
-        await audioEngine.loadTrack(track.id, streamUrl);
-      }
+      audioEngine.clearTrackCache(track.id);
+      await audioEngine.loadTrack(track.id, streamUrl, true);
 
       const loadedBuffer = audioEngine.getBuffer(track.id);
       const duration = loadedBuffer?.duration ?? (track.duration / 1000);
@@ -347,7 +345,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       // If stems are ready, load and play with stems
       if (hasStemsReady) {
         setLoadingStems(track.id);
-        await audioEngine.loadAllStems(track.id);
+        await audioEngine.loadAllStems(track.id, true); // forceReload=true
         setLoadingStems(null);
 
         await audioEngine.playStems(useDeck, track.id, startTime, 1.0);
