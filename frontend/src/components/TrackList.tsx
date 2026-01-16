@@ -1,11 +1,24 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useStore } from '../store/useStore';
+import { getAudioEngine } from '../audio/AudioEngine';
 import type { SoundCloudTrack } from '../types';
+
+interface StemStatus {
+  status: 'pending' | 'processing' | 'ready' | 'error';
+  error?: string;
+}
 
 interface TrackListProps {
   onLoadToDeck: (track: SoundCloudTrack, deck: 'A' | 'B') => void;
   onAutoMix: () => void;
 }
+
+const STEMS = [
+  { name: 'drums', label: 'D', color: '#f97316' },
+  { name: 'bass', label: 'B', color: '#8b5cf6' },
+  { name: 'vocals', label: 'V', color: '#ec4899' },
+  { name: 'other', label: 'M', color: '#10b981' },
+];
 
 export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix }) => {
   const { tracks, setTracks, deckA, deckB } = useStore();
@@ -13,6 +26,30 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [stemStatuses, setStemStatuses] = useState<Record<number, StemStatus>>({});
+  const [separatingTrack, setSeparatingTrack] = useState<number | null>(null);
+
+  const audioEngine = getAudioEngine();
+
+  // Check stem status for all tracks
+  useEffect(() => {
+    const checkStatuses = async () => {
+      for (const track of tracks) {
+        try {
+          const response = await fetch(`/api/uploads/tracks/${track.id}/stems/status`);
+          if (response.ok) {
+            const data = await response.json();
+            setStemStatuses(prev => ({ ...prev, [track.id]: data }));
+          }
+        } catch {
+          // Ignore errors
+        }
+      }
+    };
+    if (tracks.length > 0) {
+      checkStatuses();
+    }
+  }, [tracks]);
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
@@ -79,16 +116,6 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
     setTracks(newTracks);
   };
 
-  const moveTrack = (index: number, direction: 'up' | 'down') => {
-    if (direction === 'up' && index === 0) return;
-    if (direction === 'down' && index === tracks.length - 1) return;
-
-    const newTracks = [...tracks];
-    const newIndex = direction === 'up' ? index - 1 : index + 1;
-    [newTracks[index], newTracks[newIndex]] = [newTracks[newIndex], newTracks[index]];
-    setTracks(newTracks);
-  };
-
   const formatDuration = (ms: number): string => {
     const seconds = Math.floor(ms / 1000);
     const mins = Math.floor(seconds / 60);
@@ -96,14 +123,41 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const isTrackLoaded = (trackId: number) => {
-    return deckA.track?.id === trackId || deckB.track?.id === trackId;
-  };
-
   const getLoadedDeck = (trackId: number): 'A' | 'B' | null => {
     if (deckA.track?.id === trackId) return 'A';
     if (deckB.track?.id === trackId) return 'B';
     return null;
+  };
+
+  // Separate stems for a track
+  const separateStems = async (trackId: number) => {
+    setSeparatingTrack(trackId);
+    setStemStatuses(prev => ({ ...prev, [trackId]: { status: 'processing' } }));
+
+    try {
+      const response = await fetch(`/api/uploads/tracks/${trackId}/stems`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        // Poll for completion
+        const pollInterval = setInterval(async () => {
+          const statusRes = await fetch(`/api/uploads/tracks/${trackId}/stems/status`);
+          if (statusRes.ok) {
+            const status = await statusRes.json();
+            setStemStatuses(prev => ({ ...prev, [trackId]: status }));
+
+            if (status.status === 'ready' || status.status === 'error') {
+              clearInterval(pollInterval);
+              setSeparatingTrack(null);
+            }
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      setStemStatuses(prev => ({ ...prev, [trackId]: { status: 'error', error: 'Failed to separate' } }));
+      setSeparatingTrack(null);
+    }
   };
 
   return (
@@ -123,52 +177,34 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
             </div>
           </div>
 
-          {/* Auto Mix Button */}
-          {tracks.length >= 2 && (
-            <button
-              onClick={onAutoMix}
-              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-medium rounded-lg shadow-lg shadow-violet-500/20 hover:shadow-violet-500/40 transition-all duration-200"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-              Auto Mix
-            </button>
-          )}
-        </div>
-
-        {/* Upload Button */}
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploading}
-          className="w-full py-2.5 border-2 border-dashed border-gray-700 hover:border-violet-500/50 rounded-xl text-sm text-gray-400 hover:text-violet-400 transition-all duration-200 flex items-center justify-center gap-2"
-        >
-          {uploading ? (
-            <>
-              <span className="w-4 h-4 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
-              Uploading...
-            </>
-          ) : (
-            <>
+          {/* Upload Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded-lg transition-all"
+          >
+            {uploading ? (
+              <span className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+            ) : (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Add Tracks
-            </>
-          )}
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".mp3,.wav,.m4a,.ogg,.flac"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFileUpload(e.target.files)}
-        />
+            )}
+            Add
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".mp3,.wav,.m4a,.ogg,.flac"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFileUpload(e.target.files)}
+          />
+        </div>
       </div>
 
       {/* Track List */}
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="max-h-[500px] overflow-y-auto">
         {tracks.length === 0 ? (
           <div className="p-8 text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-800/50 flex items-center justify-center">
@@ -185,6 +221,8 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
               const loadedDeck = getLoadedDeck(track.id);
               const isDragging = draggedIndex === index;
               const isDragOver = dragOverIndex === index;
+              const stemStatus = stemStatuses[track.id];
+              const isSeparating = separatingTrack === track.id;
 
               return (
                 <div
@@ -193,95 +231,98 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragEnd={handleDragEnd}
-                  className={`group flex items-center gap-3 p-3 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                  className={`group p-3 transition-all duration-200 cursor-grab active:cursor-grabbing ${
                     isDragging ? 'opacity-50 bg-violet-500/10' : ''
                   } ${isDragOver ? 'bg-violet-500/20 border-t-2 border-violet-500' : ''} ${
                     loadedDeck ? 'bg-gray-800/30' : 'hover:bg-gray-800/20'
                   }`}
                 >
-                  {/* Track Number / Drag Handle */}
-                  <div className="flex flex-col items-center gap-0.5 w-6">
-                    <button
-                      onClick={() => moveTrack(index, 'up')}
-                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition-opacity"
-                      disabled={index === 0}
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                      </svg>
-                    </button>
-                    <span className="text-xs font-medium text-gray-500 group-hover:hidden">{index + 1}</span>
-                    <svg className="w-4 h-4 text-gray-600 hidden group-hover:block" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm0 6a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm-2 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm8-14a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm-2 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zm2 4a2 2 0 1 1-4 0 2 2 0 0 1 4 0z" />
-                    </svg>
-                    <button
-                      onClick={() => moveTrack(index, 'down')}
-                      className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-white transition-opacity"
-                      disabled={index === tracks.length - 1}
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
+                  <div className="flex items-center gap-3">
+                    {/* Track Number */}
+                    <span className="w-6 text-center text-xs font-medium text-gray-500">{index + 1}</span>
 
-                  {/* Track Info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{track.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs text-gray-500">{track.user.username}</span>
-                      {track.duration > 0 && (
-                        <>
-                          <span className="text-gray-700">•</span>
+                    {/* Track Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{track.title}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {track.duration > 0 && (
                           <span className="text-xs text-gray-500">{formatDuration(track.duration)}</span>
-                        </>
+                        )}
+                        {loadedDeck && (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            loadedDeck === 'A' ? 'bg-violet-500/20 text-violet-400' : 'bg-blue-500/20 text-blue-400'
+                          }`}>
+                            DECK {loadedDeck}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Stems Section */}
+                    <div className="flex items-center gap-1">
+                      {stemStatus?.status === 'ready' ? (
+                        // Show stem buttons when ready
+                        STEMS.map((stem) => (
+                          <div
+                            key={stem.name}
+                            className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold"
+                            style={{ backgroundColor: `${stem.color}30`, color: stem.color }}
+                            title={stem.name}
+                          >
+                            {stem.label}
+                          </div>
+                        ))
+                      ) : stemStatus?.status === 'processing' || isSeparating ? (
+                        // Show loading
+                        <div className="flex items-center gap-1 px-2 py-1 bg-gray-800 rounded">
+                          <span className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+                          <span className="text-[10px] text-gray-400">Splitting...</span>
+                        </div>
+                      ) : (
+                        // Show separate button
+                        <button
+                          onClick={() => separateStems(track.id)}
+                          className="px-2 py-1 bg-gray-800 hover:bg-gray-700 text-[10px] text-gray-400 hover:text-white rounded transition-all"
+                          title="Separate into stems"
+                        >
+                          Stems
+                        </button>
                       )}
                     </div>
-                  </div>
 
-                  {/* Loaded Indicator */}
-                  {loadedDeck && (
-                    <div
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        loadedDeck === 'A'
-                          ? 'bg-violet-500/20 text-violet-400'
-                          : 'bg-blue-500/20 text-blue-400'
-                      }`}
-                    >
-                      DECK {loadedDeck}
+                    {/* Deck Load Buttons */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onLoadToDeck(track, 'A')}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                          loadedDeck === 'A'
+                            ? 'bg-violet-500 text-white'
+                            : 'bg-gray-800 text-gray-400 hover:bg-violet-500/20 hover:text-violet-400'
+                        }`}
+                        title="Load to Deck A"
+                      >
+                        A
+                      </button>
+                      <button
+                        onClick={() => onLoadToDeck(track, 'B')}
+                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
+                          loadedDeck === 'B'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-800 text-gray-400 hover:bg-blue-500/20 hover:text-blue-400'
+                        }`}
+                        title="Load to Deck B"
+                      >
+                        B
+                      </button>
                     </div>
-                  )}
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={() => onLoadToDeck(track, 'A')}
-                      className={`p-1.5 rounded-lg text-xs font-medium transition-all ${
-                        loadedDeck === 'A'
-                          ? 'bg-violet-500 text-white'
-                          : 'bg-gray-800 text-gray-400 hover:bg-violet-500/20 hover:text-violet-400'
-                      }`}
-                      title="Load to Deck A"
-                    >
-                      A
-                    </button>
-                    <button
-                      onClick={() => onLoadToDeck(track, 'B')}
-                      className={`p-1.5 rounded-lg text-xs font-medium transition-all ${
-                        loadedDeck === 'B'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-800 text-gray-400 hover:bg-blue-500/20 hover:text-blue-400'
-                      }`}
-                      title="Load to Deck B"
-                    >
-                      B
-                    </button>
+                    {/* Remove Button */}
                     <button
                       onClick={() => removeTrack(index)}
-                      className="p-1.5 rounded-lg bg-gray-800 text-gray-400 hover:bg-red-500/20 hover:text-red-400 transition-all"
+                      className="w-7 h-7 rounded-lg bg-gray-800 text-gray-500 hover:bg-red-500/20 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
                       title="Remove"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <svg className="w-3 h-3 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>
@@ -292,36 +333,6 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
           </div>
         )}
       </div>
-
-      {/* DJ Tools Bar */}
-      {tracks.length >= 2 && (
-        <div className="p-3 border-t border-gray-800/50 bg-gray-900/50">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-gray-500">DJ Tools</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={onAutoMix}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-all"
-                title="Crossfade between decks"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                </svg>
-                Crossfade
-              </button>
-              <button
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs rounded-lg transition-all"
-                title="Sync BPM between decks"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Sync
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

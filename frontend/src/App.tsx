@@ -106,19 +106,16 @@ function App() {
       </header>
 
       {/* Main content */}
-      <main className="px-4 sm:px-6 pb-6 max-w-[1800px] mx-auto">
-        <div className="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
-          {/* Left sidebar - Track List & Mixing Tools */}
-          <div className="space-y-4 order-2 xl:order-1">
+      <main className="px-4 sm:px-6 pb-6 max-w-[1920px] mx-auto">
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
+          {/* Left side - Track List & Decks */}
+          <div className="space-y-6 order-2 xl:order-1">
+            {/* Track List with inline stems */}
             <TrackList
               onLoadToDeck={handleLoadToDeck}
               onAutoMix={handleAutoMix}
             />
-            <MixingTools onCrossfadeChange={handleCrossfadeChange} />
-          </div>
 
-          {/* Main area - Decks */}
-          <div className="order-1 xl:order-2 space-y-6">
             {/* DJ Decks */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <DJDeck deck="A" />
@@ -127,6 +124,13 @@ function App() {
 
             {/* Mixer Controls */}
             <MixerControls />
+          </div>
+
+          {/* Right sidebar - Mixing Tools */}
+          <div className="order-1 xl:order-2">
+            <div className="sticky top-4">
+              <MixingTools onCrossfadeChange={handleCrossfadeChange} />
+            </div>
           </div>
         </div>
       </main>
