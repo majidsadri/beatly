@@ -34,23 +34,29 @@ else
     exit 1
 fi
 
-# Check Python
+# Find best Python version (prefer 3.11, 3.10, 3.9, then python3)
 echo -n "Checking Python... "
-if command -v python3 &> /dev/null; then
-    PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-    PYTHON_MAJOR=$(echo $PYTHON_VERSION | cut -d'.' -f1)
-    PYTHON_MINOR=$(echo $PYTHON_VERSION | cut -d'.' -f2)
-    if [ "$PYTHON_MAJOR" -ge 3 ] && [ "$PYTHON_MINOR" -ge 9 ]; then
-        echo -e "${GREEN}OK${NC} (Python $PYTHON_VERSION)"
-    else
-        echo -e "${YELLOW}WARNING${NC} (Python $PYTHON_VERSION)"
-        echo "Python 3.9+ is recommended. Some features may not work."
+PYTHON_CMD=""
+for cmd in python3.12 python3.11 python3.10 python3.9 python3; do
+    if command -v $cmd &> /dev/null; then
+        VERSION=$($cmd -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+        MAJOR=$(echo $VERSION | cut -d'.' -f1)
+        MINOR=$(echo $VERSION | cut -d'.' -f2)
+        if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 9 ]; then
+            PYTHON_CMD=$cmd
+            break
+        fi
     fi
-else
+done
+
+if [ -z "$PYTHON_CMD" ]; then
     echo -e "${RED}NOT FOUND${NC}"
-    echo "Python 3 is required. Please install it from: https://python.org"
+    echo "Python 3.9+ is required. Please install it from: https://python.org"
     exit 1
 fi
+
+PYTHON_VERSION=$($PYTHON_CMD --version)
+echo -e "${GREEN}OK${NC} ($PYTHON_VERSION using '$PYTHON_CMD')"
 
 # Check npm
 echo -n "Checking npm... "
@@ -77,22 +83,17 @@ cd backend
 
 # Create venv if it doesn't exist
 if [ ! -d "venv" ]; then
-    echo "Creating virtual environment..."
-    python3 -m venv venv
+    echo "Creating virtual environment with $PYTHON_CMD..."
+    $PYTHON_CMD -m venv venv
 fi
 
-# Activate venv
-source venv/bin/activate
-
-# Upgrade pip in venv
+# Upgrade pip and install dependencies using venv python directly
 echo "Upgrading pip..."
-pip install --upgrade pip
+./venv/bin/python -m pip install --upgrade pip
 
-# Install dependencies
 echo "Installing Python dependencies..."
-pip install -r requirements.txt
+./venv/bin/python -m pip install -r requirements.txt
 
-deactivate
 cd ..
 
 # Create uploads directory if it doesn't exist
