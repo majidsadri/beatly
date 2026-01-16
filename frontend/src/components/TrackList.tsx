@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine } from '../audio/AudioEngine';
 import type { SoundCloudTrack } from '../types';
@@ -20,7 +20,13 @@ const STEMS = [
   { name: 'other', label: 'M', color: '#10b981' },
 ];
 
-export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix }) => {
+interface TrackPlayState {
+  isPlaying: boolean;
+  currentTime: number;
+  duration: number;
+}
+
+export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix: _onAutoMix }) => {
   const { tracks, setTracks, deckA, deckB } = useStore();
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -28,6 +34,10 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
   const [uploading, setUploading] = useState(false);
   const [stemStatuses, setStemStatuses] = useState<Record<number, StemStatus>>({});
   const [separatingTrack, setSeparatingTrack] = useState<number | null>(null);
+  const [playStates, setPlayStates] = useState<Record<number, TrackPlayState>>({});
+  const [activeTrack, setActiveTrack] = useState<number | null>(null);
+  const [seekingTrack, setSeekingTrack] = useState<number | null>(null);
+  const timelineRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const audioEngine = getAudioEngine();
 
@@ -160,6 +170,152 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
     }
   };
 
+  // Play/pause a track in playlist
+  const toggleTrackPlay = useCallback(async (track: SoundCloudTrack) => {
+    await audioEngine.resume();
+
+    const currentState = playStates[track.id];
+    const isCurrentlyPlaying = currentState?.isPlaying;
+
+    // Stop any other playing track
+    if (activeTrack && activeTrack !== track.id) {
+      audioEngine.stop('A'); // Use deck A for playlist preview
+      setPlayStates(prev => ({
+        ...prev,
+        [activeTrack]: { ...prev[activeTrack], isPlaying: false }
+      }));
+    }
+
+    if (isCurrentlyPlaying) {
+      audioEngine.pause('A');
+      setPlayStates(prev => ({
+        ...prev,
+        [track.id]: { ...prev[track.id], isPlaying: false }
+      }));
+      setActiveTrack(null);
+    } else {
+      // Load and play the track
+      const streamUrl = `/api/uploads/tracks/${track.id}/stream`;
+
+      // Check if already loaded
+      const buffer = audioEngine.getBuffer(track.id);
+      if (!buffer) {
+        await audioEngine.loadTrack(track.id, streamUrl);
+      }
+
+      const loadedBuffer = audioEngine.getBuffer(track.id);
+      const duration = loadedBuffer?.duration ?? (track.duration / 1000);
+      const startTime = currentState?.currentTime ?? 0;
+
+      await audioEngine.play('A', track.id, startTime, 1.0);
+
+      setPlayStates(prev => ({
+        ...prev,
+        [track.id]: { isPlaying: true, currentTime: startTime, duration }
+      }));
+      setActiveTrack(track.id);
+    }
+  }, [audioEngine, playStates, activeTrack]);
+
+  // Update current time for playing track
+  useEffect(() => {
+    if (!activeTrack) return;
+
+    const interval = setInterval(() => {
+      const time = audioEngine.getCurrentTime('A');
+      setPlayStates(prev => {
+        const state = prev[activeTrack];
+        if (!state) return prev;
+
+        // Check if track ended
+        if (time >= state.duration - 0.1) {
+          audioEngine.stop('A');
+          return {
+            ...prev,
+            [activeTrack]: { ...state, isPlaying: false, currentTime: 0 }
+          };
+        }
+
+        return {
+          ...prev,
+          [activeTrack]: { ...state, currentTime: time }
+        };
+      });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [activeTrack, audioEngine]);
+
+  // Seek to position in track
+  const seekTrack = useCallback(async (trackId: number, position: number) => {
+    const state = playStates[trackId];
+    if (!state) return;
+
+    const seekTime = Math.max(0, Math.min(position * state.duration, state.duration - 0.1));
+
+    setPlayStates(prev => ({
+      ...prev,
+      [trackId]: { ...prev[trackId], currentTime: seekTime }
+    }));
+
+    if (state.isPlaying) {
+      audioEngine.stop('A');
+      await audioEngine.play('A', trackId, seekTime, 1.0);
+    }
+  }, [playStates, audioEngine]);
+
+  // Handle timeline mouse down
+  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>, trackId: number) => {
+    const state = playStates[trackId];
+    if (!state) return;
+
+    setSeekingTrack(trackId);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const position = (e.clientX - rect.left) / rect.width;
+    seekTrack(trackId, position);
+  };
+
+  // Handle timeline drag
+  useEffect(() => {
+    if (!seekingTrack) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const ref = timelineRefs.current[seekingTrack];
+      if (!ref) return;
+
+      const rect = ref.getBoundingClientRect();
+      const position = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      seekTrack(seekingTrack, position);
+    };
+
+    const handleMouseUp = () => {
+      setSeekingTrack(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [seekingTrack, seekTrack]);
+
+  // Format time for display
+  const formatTimeShort = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get progress percentage
+  const getProgressPercent = (trackId: number): number => {
+    const state = playStates[trackId];
+    if (!state || state.duration <= 0) return 0;
+    return Math.min(100, (state.currentTime / state.duration) * 100);
+  };
+
   return (
     <div className="bg-gradient-to-b from-gray-900/90 to-gray-900/70 rounded-2xl border border-gray-800/50 overflow-hidden">
       {/* Header */}
@@ -223,6 +379,8 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
               const isDragOver = dragOverIndex === index;
               const stemStatus = stemStatuses[track.id];
               const isSeparating = separatingTrack === track.id;
+              const playState = playStates[track.id];
+              const isPlaying = playState?.isPlaying ?? false;
 
               return (
                 <div
@@ -241,13 +399,30 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
                     {/* Track Number */}
                     <span className="w-6 text-center text-xs font-medium text-gray-500">{index + 1}</span>
 
+                    {/* Play/Pause Button */}
+                    <button
+                      onClick={() => toggleTrackPlay(track)}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                        isPlaying
+                          ? 'bg-violet-500 text-white'
+                          : 'bg-gray-800 text-gray-400 hover:bg-violet-500/20 hover:text-violet-400'
+                      }`}
+                    >
+                      {isPlaying ? (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z" />
+                        </svg>
+                      )}
+                    </button>
+
                     {/* Track Info */}
-                    <div className="flex-1 min-w-0">
+                    <div className="w-32 min-w-0 flex-shrink-0">
                       <p className="text-sm font-medium text-white truncate">{track.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        {track.duration > 0 && (
-                          <span className="text-xs text-gray-500">{formatDuration(track.duration)}</span>
-                        )}
                         {loadedDeck && (
                           <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                             loadedDeck === 'A' ? 'bg-violet-500/20 text-violet-400' : 'bg-blue-500/20 text-blue-400'
@@ -258,14 +433,50 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
                       </div>
                     </div>
 
+                    {/* Timeline / Playbar */}
+                    <div className="flex-1 min-w-0">
+                      <div
+                        ref={(el) => { timelineRefs.current[track.id] = el; }}
+                        onMouseDown={(e) => handleTimelineMouseDown(e, track.id)}
+                        className="relative h-6 bg-gray-800 rounded cursor-pointer overflow-hidden group/timeline"
+                      >
+                        {/* Progress fill */}
+                        <div
+                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-violet-600/40 to-violet-500 transition-all duration-100"
+                          style={{ width: `${getProgressPercent(track.id)}%` }}
+                        />
+
+                        {/* Playhead */}
+                        {playState && (
+                          <div
+                            className="absolute top-0 w-0.5 h-full bg-white shadow-lg transition-all duration-100"
+                            style={{ left: `calc(${getProgressPercent(track.id)}% - 1px)` }}
+                          />
+                        )}
+
+                        {/* Time display */}
+                        <div className="absolute inset-0 flex items-center justify-between px-2 pointer-events-none">
+                          <span className="text-[10px] font-medium text-white">
+                            {playState ? formatTimeShort(playState.currentTime) : '0:00'}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {playState ? formatTimeShort(playState.duration) : formatDuration(track.duration)}
+                          </span>
+                        </div>
+
+                        {/* Hover effect */}
+                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover/timeline:opacity-100 transition-opacity" />
+                      </div>
+                    </div>
+
                     {/* Stems Section */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {stemStatus?.status === 'ready' ? (
                         // Show stem buttons when ready
                         STEMS.map((stem) => (
                           <div
                             key={stem.name}
-                            className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold"
+                            className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold cursor-pointer hover:scale-110 transition-transform"
                             style={{ backgroundColor: `${stem.color}30`, color: stem.color }}
                             title={stem.name}
                           >
@@ -291,7 +502,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
                     </div>
 
                     {/* Deck Load Buttons */}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <button
                         onClick={() => onLoadToDeck(track, 'A')}
                         className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
@@ -319,7 +530,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck, onAutoMix })
                     {/* Remove Button */}
                     <button
                       onClick={() => removeTrack(index)}
-                      className="w-7 h-7 rounded-lg bg-gray-800 text-gray-500 hover:bg-red-500/20 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
+                      className="w-7 h-7 rounded-lg bg-gray-800 text-gray-500 hover:bg-red-500/20 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
                       title="Remove"
                     >
                       <svg className="w-3 h-3 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
