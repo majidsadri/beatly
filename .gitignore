@@ -51,6 +51,10 @@ backend/cache/audio/
 backend/cache/stems/
 backend/cache/analysis/
 
+# User uploads (audio files)
+backend/uploads/
+uploads/
+
 # Temporary files
 *.tmp
 *.temp
