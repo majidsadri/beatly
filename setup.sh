@@ -96,33 +96,51 @@ echo ""
 echo "Starting Beatly..."
 echo ""
 
-# Start backend in background (using venv python directly)
+# Start backend
+echo "Starting backend server..."
 cd backend
-./venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+./venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 2>&1 &
 BACKEND_PID=$!
 cd ..
 
-# Wait for backend to start
+# Wait for backend to start and verify it's running
 sleep 3
+if curl -s http://localhost:8000/api/health > /dev/null 2>&1; then
+    echo "  Backend running on http://localhost:8000"
+else
+    echo "  WARNING: Backend may not have started correctly"
+    echo "  Check for errors above"
+fi
 
 # Start frontend
+echo "Starting frontend server..."
 cd frontend
-npm run dev &
+npm run dev 2>&1 &
 FRONTEND_PID=$!
 cd ..
+
+sleep 2
 
 echo ""
 echo "========================================="
 echo "        Beatly is running!"
 echo "========================================="
 echo ""
-echo "  Open in browser: http://localhost:5173"
+echo "  Frontend: http://localhost:5173"
+echo "  Backend:  http://localhost:8000"
 echo ""
 echo "  Press Ctrl+C to stop all servers"
 echo ""
 
 # Handle Ctrl+C to kill both processes
-trap "echo ''; echo 'Stopping servers...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" INT
+cleanup() {
+    echo ""
+    echo "Stopping servers..."
+    kill $BACKEND_PID 2>/dev/null
+    kill $FRONTEND_PID 2>/dev/null
+    exit 0
+}
+trap cleanup INT TERM
 
 # Wait for processes
 wait
