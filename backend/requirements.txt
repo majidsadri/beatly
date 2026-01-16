@@ -14,7 +14,6 @@ numpy>=1.24.0
 librosa>=0.10.0
 soundfile>=0.12.0
 
-# Optional: Demucs for high-quality stem separation
-# Uncomment if you want ML-based stem separation (requires more disk space)
-# demucs>=4.0.0
-# torch>=2.0.0
+# Demucs for high-quality stem separation (uses same AI as UVR)
+demucs>=4.0.0
+torch>=2.0.0
