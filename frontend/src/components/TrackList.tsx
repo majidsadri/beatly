@@ -13,13 +13,31 @@ interface TrackListProps {
   onAutoMix: () => void;
 }
 
-const STEMS: { name: StemName; label: string; fullName: string; color: string }[] = [
-  { name: 'drums', label: 'D', fullName: 'Drums', color: '#f97316' },
-  { name: 'bass', label: 'B', fullName: 'Bass', color: '#8b5cf6' },
-  { name: 'vocals', label: 'V', fullName: 'Vocals', color: '#ec4899' },
-  { name: 'other', label: 'M', fullName: 'Melody', color: '#10b981' },
+const STEMS: { name: StemName; label: string; fullName: string; color: string; icon: string }[] = [
+  { name: 'drums', label: 'D', fullName: 'Drums', color: '#f97316', icon: '🥁' },
+  { name: 'bass', label: 'B', fullName: 'Bass', color: '#8b5cf6', icon: '🎸' },
+  { name: 'vocals', label: 'V', fullName: 'Vocals', color: '#ec4899', icon: '🎤' },
+  { name: 'other', label: 'M', fullName: 'Melody', color: '#10b981', icon: '🎹' },
 ];
 
+// Stem volume state (0-1 for each stem)
+interface StemVolumeState {
+  drums: number;
+  bass: number;
+  vocals: number;
+  other: number;
+}
+
+// Preset configurations
+const STEM_PRESETS: { name: string; label: string; icon: string; config: StemVolumeState }[] = [
+  { name: 'full', label: 'Full Mix', icon: '🎵', config: { drums: 1, bass: 1, vocals: 1, other: 1 } },
+  { name: 'acapella', label: 'Acapella', icon: '🎤', config: { drums: 0, bass: 0, vocals: 1, other: 0 } },
+  { name: 'instrumental', label: 'Instrumental', icon: '🎹', config: { drums: 1, bass: 1, vocals: 0, other: 1 } },
+  { name: 'rhythm', label: 'Rhythm', icon: '🥁', config: { drums: 1, bass: 1, vocals: 0, other: 0 } },
+  { name: 'melody', label: 'Melody Only', icon: '🎶', config: { drums: 0, bass: 0, vocals: 0, other: 1 } },
+];
+
+// Legacy interface for backwards compatibility
 interface StemEnabledState {
   drums: boolean;
   bass: boolean;
@@ -49,7 +67,9 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
   const [seekingTrack, setSeekingTrack] = useState<number | null>(null);
   const timelineRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [stemEnabled, setStemEnabled] = useState<Record<number, StemEnabledState>>({});
+  const [stemVolumes, setStemVolumes] = useState<Record<number, StemVolumeState>>({});
   const [loadingStems, setLoadingStems] = useState<number | null>(null);
+  const [expandedStems, setExpandedStems] = useState<Record<number, boolean>>({});
 
   const audioEngine = getAudioEngine();
 
@@ -62,12 +82,20 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
           if (response.ok) {
             const data = await response.json();
             setStemStatuses(prev => ({ ...prev, [track.id]: data }));
-            // Initialize stem enabled state when stems are ready
-            if (data.status === 'ready' && !stemEnabled[track.id]) {
-              setStemEnabled(prev => ({
-                ...prev,
-                [track.id]: { drums: true, bass: true, vocals: true, other: true }
-              }));
+            // Initialize stem states when stems are ready
+            if (data.status === 'ready') {
+              if (!stemEnabled[track.id]) {
+                setStemEnabled(prev => ({
+                  ...prev,
+                  [track.id]: { drums: true, bass: true, vocals: true, other: true }
+                }));
+              }
+              if (!stemVolumes[track.id]) {
+                setStemVolumes(prev => ({
+                  ...prev,
+                  [track.id]: { drums: 1, bass: 1, vocals: 1, other: 1 }
+                }));
+              }
             }
           }
         } catch {
@@ -484,59 +512,110 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
     return Math.min(100, (state.currentTime / state.duration) * 100);
   };
 
-  // Toggle a single stem on/off
+  // Toggle a single stem on/off (mute/unmute)
   const toggleStem = (trackId: number, stemName: StemName) => {
-    const currentState = stemEnabled[trackId] || { drums: true, bass: true, vocals: true, other: true };
-    const newEnabled = !currentState[stemName];
-
-    const newState = {
-      ...currentState,
-      [stemName]: newEnabled
-    };
+    const currentVolumes = stemVolumes[trackId] || { drums: 1, bass: 1, vocals: 1, other: 1 };
+    const currentEnabled = stemEnabled[trackId] || { drums: true, bass: true, vocals: true, other: true };
+    const newEnabled = !currentEnabled[stemName];
 
     setStemEnabled(prev => ({
       ...prev,
-      [trackId]: newState
+      [trackId]: { ...currentEnabled, [stemName]: newEnabled }
     }));
 
     // Update audio engine immediately if this track is playing
     const playState = playStates[trackId];
     if (playState?.isPlaying && playState.deck) {
-      audioEngine.setStemVolume(playState.deck, stemName, newEnabled ? 1 : 0);
+      const volume = newEnabled ? currentVolumes[stemName] : 0;
+      audioEngine.setStemVolume(playState.deck, stemName, volume);
     }
   };
 
-  // Solo a stem (only that stem plays)
+  // Solo a stem (only that stem plays at full volume)
   const soloStem = (trackId: number, stemName: StemName) => {
-    const newState = {
+    const newEnabled = {
       drums: stemName === 'drums',
       bass: stemName === 'bass',
       vocals: stemName === 'vocals',
       other: stemName === 'other',
     };
+    const currentVolumes = stemVolumes[trackId] || { drums: 1, bass: 1, vocals: 1, other: 1 };
 
     setStemEnabled(prev => ({
       ...prev,
-      [trackId]: newState
+      [trackId]: newEnabled
     }));
 
-    // Update audio engine immediately if this track is playing
     const playState = playStates[trackId];
     if (playState?.isPlaying && playState.deck) {
-      audioEngine.setStemVolume(playState.deck, 'drums', newState.drums ? 1 : 0);
-      audioEngine.setStemVolume(playState.deck, 'bass', newState.bass ? 1 : 0);
-      audioEngine.setStemVolume(playState.deck, 'vocals', newState.vocals ? 1 : 0);
-      audioEngine.setStemVolume(playState.deck, 'other', newState.other ? 1 : 0);
+      audioEngine.setStemVolume(playState.deck, 'drums', newEnabled.drums ? currentVolumes.drums : 0);
+      audioEngine.setStemVolume(playState.deck, 'bass', newEnabled.bass ? currentVolumes.bass : 0);
+      audioEngine.setStemVolume(playState.deck, 'vocals', newEnabled.vocals ? currentVolumes.vocals : 0);
+      audioEngine.setStemVolume(playState.deck, 'other', newEnabled.other ? currentVolumes.other : 0);
     }
   };
 
-  // Enable all stems
-  const enableAllStems = (trackId: number) => {
-    const newState = { drums: true, bass: true, vocals: true, other: true };
+  // Set individual stem volume
+  const setStemVolumeValue = (trackId: number, stemName: StemName, volume: number) => {
+    const currentVolumes = stemVolumes[trackId] || { drums: 1, bass: 1, vocals: 1, other: 1 };
+    const currentEnabled = stemEnabled[trackId] || { drums: true, bass: true, vocals: true, other: true };
+
+    setStemVolumes(prev => ({
+      ...prev,
+      [trackId]: { ...currentVolumes, [stemName]: volume }
+    }));
+
+    // Update audio engine if stem is enabled and playing
+    const playState = playStates[trackId];
+    if (playState?.isPlaying && playState.deck && currentEnabled[stemName]) {
+      audioEngine.setStemVolume(playState.deck, stemName, volume);
+    }
+  };
+
+  // Apply a preset configuration
+  const applyPreset = (trackId: number, preset: typeof STEM_PRESETS[0]) => {
+    const { config } = preset;
+
+    // Update enabled state based on which stems have volume > 0
+    const newEnabled = {
+      drums: config.drums > 0,
+      bass: config.bass > 0,
+      vocals: config.vocals > 0,
+      other: config.other > 0,
+    };
 
     setStemEnabled(prev => ({
       ...prev,
-      [trackId]: newState
+      [trackId]: newEnabled
+    }));
+
+    setStemVolumes(prev => ({
+      ...prev,
+      [trackId]: { ...config }
+    }));
+
+    // Apply to audio engine
+    const playState = playStates[trackId];
+    if (playState?.isPlaying && playState.deck) {
+      audioEngine.setStemVolume(playState.deck, 'drums', config.drums);
+      audioEngine.setStemVolume(playState.deck, 'bass', config.bass);
+      audioEngine.setStemVolume(playState.deck, 'vocals', config.vocals);
+      audioEngine.setStemVolume(playState.deck, 'other', config.other);
+    }
+  };
+
+  // Enable all stems at full volume (used by Full Mix preset internally)
+  const enableAllStems = useCallback((trackId: number) => {
+    const fullConfig = { drums: 1, bass: 1, vocals: 1, other: 1 };
+
+    setStemEnabled(prev => ({
+      ...prev,
+      [trackId]: { drums: true, bass: true, vocals: true, other: true }
+    }));
+
+    setStemVolumes(prev => ({
+      ...prev,
+      [trackId]: fullConfig
     }));
 
     const playState = playStates[trackId];
@@ -546,9 +625,16 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       audioEngine.setStemVolume(playState.deck, 'vocals', 1);
       audioEngine.setStemVolume(playState.deck, 'other', 1);
     }
+  }, [audioEngine, playStates]);
+
+  // Get current stem volume (returns 0 if muted)
+  const getStemVolume = (trackId: number, stemName: StemName): number => {
+    const enabled = stemEnabled[trackId]?.[stemName] ?? true;
+    if (!enabled) return 0;
+    return stemVolumes[trackId]?.[stemName] ?? 1;
   };
 
-  // Check if stem is enabled
+  // Check if stem is enabled (not muted)
   const isStemEnabled = (trackId: number, stemName: StemName): boolean => {
     return stemEnabled[trackId]?.[stemName] ?? true;
   };
@@ -559,6 +645,14 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
     if (!state) return false;
     return state[stemName] &&
       Object.entries(state).filter(([_, v]) => v).length === 1;
+  };
+
+  // Toggle expanded stem controls
+  const toggleExpandedStems = (trackId: number) => {
+    setExpandedStems(prev => ({
+      ...prev,
+      [trackId]: !prev[trackId]
+    }));
   };
 
   return (
@@ -849,50 +943,163 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                   {/* Stem Controls - Only show when stems are ready */}
                   {hasStemsReady && (
                     <div className="px-3 pb-3 pt-0">
-                      <div className="flex items-center gap-2 p-2 bg-gray-800/50 rounded-lg">
-                        <span className="text-[10px] text-gray-500 uppercase tracking-wide mr-1">Stems:</span>
+                      {/* Compact Stem Controls */}
+                      <div className="p-3 bg-gradient-to-r from-gray-800/80 to-gray-800/40 rounded-xl border border-gray-700/50">
+                        {/* Header with expand toggle */}
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Stems</span>
+                            <div className="flex gap-0.5">
+                              {STEMS.map(stem => (
+                                <div
+                                  key={stem.name}
+                                  className="w-1.5 h-3 rounded-full transition-all"
+                                  style={{
+                                    backgroundColor: isStemEnabled(track.id, stem.name) ? stem.color : '#374151',
+                                    opacity: getStemVolume(track.id, stem.name),
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => enableAllStems(track.id)}
+                              className="text-[10px] text-gray-500 hover:text-green-400 transition-colors"
+                              title="Reset all stems to full volume"
+                            >
+                              Reset
+                            </button>
+                            <button
+                              onClick={() => toggleExpandedStems(track.id)}
+                              className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+                            >
+                              {expandedStems[track.id] ? 'Less' : 'More'}
+                              <svg
+                                className={`w-3 h-3 transition-transform ${expandedStems[track.id] ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
 
-                        {STEMS.map((stem) => {
-                          const enabled = isStemEnabled(track.id, stem.name);
-                          const soloed = isStemSoloed(track.id, stem.name);
+                        {/* Quick Stem Buttons */}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          {STEMS.map((stem) => {
+                            const enabled = isStemEnabled(track.id, stem.name);
+                            const soloed = isStemSoloed(track.id, stem.name);
+                            const volume = getStemVolume(track.id, stem.name);
 
-                          return (
-                            <div key={stem.name} className="flex flex-col items-center gap-1">
+                            return (
                               <button
+                                key={stem.name}
                                 onClick={() => toggleStem(track.id, stem.name)}
                                 onDoubleClick={() => soloStem(track.id, stem.name)}
-                                className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all ${
-                                  enabled
-                                    ? 'hover:scale-105'
-                                    : 'opacity-40 hover:opacity-60'
-                                } ${soloed ? 'ring-2 ring-white' : ''}`}
+                                className={`relative flex-1 h-12 rounded-lg flex flex-col items-center justify-center transition-all ${
+                                  enabled ? 'hover:scale-[1.02]' : 'opacity-50 hover:opacity-70'
+                                } ${soloed ? 'ring-2 ring-white ring-offset-1 ring-offset-gray-900' : ''}`}
                                 style={{
-                                  backgroundColor: enabled ? `${stem.color}30` : '#1f2937',
-                                  color: enabled ? stem.color : '#6b7280',
+                                  backgroundColor: enabled ? `${stem.color}25` : '#1f2937',
+                                  borderLeft: `3px solid ${enabled ? stem.color : '#374151'}`,
                                 }}
-                                title={`${stem.fullName} - Click to toggle, Double-click to solo`}
+                                title={`${stem.fullName} - Click to mute/unmute, Double-click to solo`}
                               >
-                                <span className="text-lg font-bold">{stem.label}</span>
+                                <span className="text-lg">{stem.icon}</span>
+                                <span
+                                  className="text-[9px] font-medium"
+                                  style={{ color: enabled ? stem.color : '#6b7280' }}
+                                >
+                                  {stem.fullName}
+                                </span>
+                                {/* Volume indicator bar */}
+                                <div
+                                  className="absolute bottom-0 left-0 right-0 h-0.5 rounded-b-lg transition-all"
+                                  style={{
+                                    backgroundColor: stem.color,
+                                    opacity: volume,
+                                    transform: `scaleX(${volume})`,
+                                    transformOrigin: 'left',
+                                  }}
+                                />
                               </button>
-                              <span className="text-[8px] text-gray-500">{stem.fullName}</span>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
 
-                        {/* Reset All Button */}
-                        <button
-                          onClick={() => enableAllStems(track.id)}
-                          className="ml-2 px-2 py-1 bg-gray-700 hover:bg-gray-600 text-[10px] text-gray-400 hover:text-white rounded transition-all"
-                          title="Enable all stems"
-                        >
-                          All
-                        </button>
+                        {/* Preset Buttons */}
+                        <div className="flex gap-1 flex-wrap">
+                          {STEM_PRESETS.map((preset) => (
+                            <button
+                              key={preset.name}
+                              onClick={() => applyPreset(track.id, preset)}
+                              className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 text-[9px] text-gray-400 hover:text-white rounded-md transition-all flex items-center gap-1"
+                              title={preset.label}
+                            >
+                              <span>{preset.icon}</span>
+                              <span>{preset.label}</span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Expanded Controls - Volume Sliders */}
+                        {expandedStems[track.id] && (
+                          <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-2">
+                            {STEMS.map((stem) => {
+                              const enabled = isStemEnabled(track.id, stem.name);
+                              const volume = stemVolumes[track.id]?.[stem.name] ?? 1;
+
+                              return (
+                                <div key={stem.name} className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => toggleStem(track.id, stem.name)}
+                                    className={`w-6 h-6 rounded flex items-center justify-center text-sm transition-all ${
+                                      enabled ? '' : 'opacity-40'
+                                    }`}
+                                    style={{
+                                      backgroundColor: enabled ? `${stem.color}30` : '#1f2937',
+                                    }}
+                                  >
+                                    {stem.icon}
+                                  </button>
+                                  <span
+                                    className="text-[10px] w-12 font-medium"
+                                    style={{ color: enabled ? stem.color : '#6b7280' }}
+                                  >
+                                    {stem.fullName}
+                                  </span>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.05"
+                                    value={volume}
+                                    onChange={(e) => setStemVolumeValue(track.id, stem.name, parseFloat(e.target.value))}
+                                    disabled={!enabled}
+                                    className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer disabled:opacity-30"
+                                    style={{
+                                      background: enabled
+                                        ? `linear-gradient(to right, ${stem.color} 0%, ${stem.color} ${volume * 100}%, #374151 ${volume * 100}%, #374151 100%)`
+                                        : '#374151',
+                                    }}
+                                  />
+                                  <span className="text-[10px] text-gray-500 w-8 text-right">
+                                    {enabled ? `${Math.round(volume * 100)}%` : 'OFF'}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {/* Hint */}
+                        <p className="text-[8px] text-gray-600 mt-2 text-center">
+                          Click stem to mute • Double-click to solo • Use presets for quick mixing
+                        </p>
                       </div>
-
-                      {/* Stem usage hint */}
-                      <p className="text-[9px] text-gray-600 mt-1 text-center">
-                        Click to mute/unmute • Double-click to solo
-                      </p>
                     </div>
                   )}
                 </div>
