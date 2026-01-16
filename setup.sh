@@ -83,15 +83,37 @@ echo "========================================="
 echo "        Setup Complete!"
 echo "========================================="
 echo ""
-echo "To start the development servers, run:"
+echo "Starting Beatly..."
 echo ""
-echo "  npm run dev"
+
+# Start backend in background
+cd backend
+source venv/bin/activate
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+BACKEND_PID=$!
+cd ..
+
+# Wait for backend to start
+sleep 3
+
+# Start frontend
+cd frontend
+npm run dev &
+FRONTEND_PID=$!
+cd ..
+
 echo ""
-echo "Or start them separately:"
+echo "========================================="
+echo "        Beatly is running!"
+echo "========================================="
 echo ""
-echo "  Frontend: cd frontend && npm run dev"
-echo "  Backend:  cd backend && source venv/bin/activate && python -m uvicorn app.main:app --reload --port 8000"
+echo "  Open in browser: http://localhost:5173"
 echo ""
-echo "The app will be available at:"
-echo "  http://localhost:5173"
+echo "  Press Ctrl+C to stop all servers"
 echo ""
+
+# Handle Ctrl+C to kill both processes
+trap "echo ''; echo 'Stopping servers...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" INT
+
+# Wait for processes
+wait
