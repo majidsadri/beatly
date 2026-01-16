@@ -1,10 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine } from '../audio/AudioEngine';
 
 interface MixingToolsProps {
   onCrossfadeChange: (value: number) => void;
 }
+
+// Drum patterns
+const DRUM_PATTERNS = [
+  { name: 'Basic', icon: '🥁', description: 'Simple kick and snare' },
+  { name: 'House', icon: '🏠', description: 'Four on the floor' },
+  { name: 'HipHop', icon: '🎤', description: 'Boom bap groove' },
+  { name: 'Techno', icon: '⚡', description: 'Driving kick pattern' },
+];
 
 export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) => {
   const store = useStore();
@@ -16,6 +24,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
   const [drumLoopOn, setDrumLoopOn] = useState(false);
   const [drumBpm, setDrumBpm] = useState(120);
   const [drumVolume, setDrumVolume] = useState(60);
+  const [drumPattern, setDrumPattern] = useState(0);
+  const [masterTime, setMasterTime] = useState({ current: 0, duration: 0 });
+  const masterTimelineRef = useRef<HTMLDivElement>(null);
 
   const audioEngine = getAudioEngine();
 
@@ -27,6 +38,26 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       setDrumBpm(Math.round(deckB.analysis.bpm));
     }
   }, [deckA.isPlaying, deckB.isPlaying, deckA.analysis?.bpm, deckB.analysis?.bpm]);
+
+  // Update master timeline based on active deck
+  useEffect(() => {
+    if (!deckA.isPlaying && !deckB.isPlaying) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      // Use the primary playing deck for master timeline
+      const activeDeck = deckA.isPlaying ? 'A' : 'B';
+      const currentTime = audioEngine.getCurrentTime(activeDeck);
+      const duration = deckA.isPlaying
+        ? (deckA.track?.duration || 0) / 1000
+        : (deckB.track?.duration || 0) / 1000;
+
+      setMasterTime({ current: currentTime, duration });
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [deckA.isPlaying, deckB.isPlaying, audioEngine, deckA.track, deckB.track]);
 
   const handleCrossfade = (value: number) => {
     setCrossfader(value);
@@ -134,6 +165,34 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
   // For auto-mix, both decks should be playing
   const canMix = deckA.track && deckB.track;
   const bothPlaying = deckA.isPlaying && deckB.isPlaying;
+  const anyPlaying = deckA.isPlaying || deckB.isPlaying;
+
+  // Format time as mm:ss
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Master play/pause all
+  const toggleMasterPlayback = async () => {
+    await audioEngine.resume();
+    if (anyPlaying) {
+      // Pause all
+      if (deckA.isPlaying && deckA.track) {
+        audioEngine.stop('A');
+        store.setDeckPlaying('A', false);
+      }
+      if (deckB.isPlaying && deckB.track) {
+        audioEngine.stop('B');
+        store.setDeckPlaying('B', false);
+      }
+      if (drumLoopOn) {
+        audioEngine.stopDrumLoop();
+        setDrumLoopOn(false);
+      }
+    }
+  };
 
   return (
     <div className="bg-gradient-to-b from-gray-900/90 to-gray-900/70 rounded-2xl border border-gray-800/50 p-4">
@@ -157,6 +216,111 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
             <span className="text-xs text-violet-400">Mixing...</span>
           </div>
         )}
+      </div>
+
+      {/* Master Playback Bar */}
+      <div className="mb-4 p-3 bg-gradient-to-r from-violet-900/30 via-gray-800/50 to-blue-900/30 rounded-xl border border-gray-700/50">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Master Mix</span>
+          {anyPlaying && (
+            <div className="flex items-center gap-1">
+              <span className="flex gap-0.5">
+                {[...Array(4)].map((_, i) => (
+                  <span
+                    key={i}
+                    className="w-0.5 bg-gradient-to-t from-violet-500 to-blue-500 rounded-full animate-pulse"
+                    style={{
+                      height: `${8 + Math.random() * 8}px`,
+                      animationDelay: `${i * 100}ms`,
+                    }}
+                  />
+                ))}
+              </span>
+              <span className="text-[10px] text-green-400 ml-1">LIVE</span>
+            </div>
+          )}
+        </div>
+
+        {/* Master Timeline */}
+        <div className="flex items-center gap-3">
+          {/* Master Stop Button */}
+          <button
+            onClick={toggleMasterPlayback}
+            disabled={!anyPlaying}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+              anyPlaying
+                ? 'bg-gradient-to-br from-red-500 to-orange-500 hover:from-red-400 hover:to-orange-400 text-white shadow-lg shadow-red-500/30'
+                : 'bg-gray-700 text-gray-500'
+            }`}
+            title={anyPlaying ? 'Stop all playback' : 'No tracks playing'}
+          >
+            {anyPlaying ? (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <rect x="6" y="6" width="12" height="12" rx="1" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            )}
+          </button>
+
+          {/* Timeline */}
+          <div className="flex-1">
+            <div
+              ref={masterTimelineRef}
+              className="relative h-3 bg-gray-700/50 rounded-full overflow-hidden cursor-pointer"
+            >
+              {/* Progress gradient showing both decks */}
+              {deckA.isPlaying && (
+                <div
+                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-violet-500 to-violet-400 transition-all duration-100"
+                  style={{
+                    width: `${masterTime.duration > 0 ? (masterTime.current / masterTime.duration) * 100 : 0}%`,
+                    opacity: crossfader <= 0 ? 1 : 0.5 - crossfader * 0.5,
+                  }}
+                />
+              )}
+              {deckB.isPlaying && (
+                <div
+                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-100"
+                  style={{
+                    width: `${masterTime.duration > 0 ? (masterTime.current / masterTime.duration) * 100 : 0}%`,
+                    opacity: crossfader >= 0 ? 1 : 0.5 + crossfader * 0.5,
+                  }}
+                />
+              )}
+              {/* Drum indicator overlay */}
+              {drumLoopOn && (
+                <div className="absolute inset-0 bg-orange-500/20 animate-pulse" />
+              )}
+            </div>
+
+            {/* Time display */}
+            <div className="flex justify-between mt-1">
+              <span className="text-[10px] text-gray-500">{formatTime(masterTime.current)}</span>
+              <span className="text-[10px] text-gray-500">
+                {anyPlaying ? formatTime(masterTime.duration) : '--:--'}
+              </span>
+            </div>
+          </div>
+
+          {/* Active deck indicators */}
+          <div className="flex flex-col gap-1">
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium ${
+              deckA.isPlaying ? 'bg-violet-500/30 text-violet-400' : 'bg-gray-700/50 text-gray-500'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${deckA.isPlaying ? 'bg-violet-500 animate-pulse' : 'bg-gray-600'}`} />
+              A
+            </div>
+            <div className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium ${
+              deckB.isPlaying ? 'bg-blue-500/30 text-blue-400' : 'bg-gray-700/50 text-gray-500'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${deckB.isPlaying ? 'bg-blue-500 animate-pulse' : 'bg-gray-600'}`} />
+              B
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Deck Status */}
@@ -189,40 +353,75 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
         </div>
       </div>
 
-      {/* Drum Loop Section */}
-      <div className="mb-4 p-3 bg-gray-800/50 rounded-xl">
+      {/* Drum Machine Section */}
+      <div className="mb-4 p-3 bg-gradient-to-br from-orange-900/20 to-red-900/20 rounded-xl border border-orange-500/20">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-orange-400">DRUM LOOP</span>
+            <span className="text-lg">🥁</span>
+            <span className="text-xs font-medium text-orange-400">DRUM MACHINE</span>
             {drumLoopOn && (
-              <span className="flex gap-0.5">
-                <span className="w-1 h-2 bg-orange-500 rounded-full animate-pulse" />
-                <span className="w-1 h-3 bg-orange-500 rounded-full animate-pulse" style={{ animationDelay: '100ms' }} />
-                <span className="w-1 h-2 bg-orange-500 rounded-full animate-pulse" style={{ animationDelay: '200ms' }} />
+              <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 rounded-full">
+                <span className="w-1.5 h-1.5 bg-orange-500 rounded-full animate-pulse" />
+                <span className="text-[9px] text-orange-400">Active</span>
               </span>
             )}
           </div>
           <button
             onClick={toggleDrumLoop}
-            className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
               drumLoopOn
-                ? 'bg-gradient-to-r from-orange-500 to-red-500'
-                : 'bg-gray-700'
+                ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-lg shadow-orange-500/30'
+                : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
             }`}
           >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all duration-300 ${
-                drumLoopOn ? 'left-7' : 'left-1'
-              }`}
-            />
+            {drumLoopOn ? 'Stop' : 'Start'}
           </button>
         </div>
 
+        {/* Pattern Selection */}
+        <div className="mb-3">
+          <span className="text-[10px] text-gray-500 mb-1.5 block">Pattern</span>
+          <div className="grid grid-cols-4 gap-1">
+            {DRUM_PATTERNS.map((pattern, index) => (
+              <button
+                key={pattern.name}
+                onClick={() => setDrumPattern(index)}
+                className={`py-2 px-1 rounded-lg text-center transition-all ${
+                  drumPattern === index
+                    ? 'bg-orange-500/30 border border-orange-500/50'
+                    : 'bg-gray-700/50 hover:bg-gray-700 border border-transparent'
+                }`}
+                title={pattern.description}
+              >
+                <span className="text-base block">{pattern.icon}</span>
+                <span className={`text-[8px] block ${drumPattern === index ? 'text-orange-400' : 'text-gray-500'}`}>
+                  {pattern.name}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* BPM and Volume Controls */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="flex items-center justify-between mb-1">
               <span className="text-[10px] text-gray-500">BPM</span>
-              <span className="text-xs font-medium text-white">{drumBpm}</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => handleDrumBpmChange(Math.max(60, drumBpm - 1))}
+                  className="w-5 h-5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs"
+                >
+                  -
+                </button>
+                <span className="text-xs font-medium text-white w-8 text-center">{drumBpm}</span>
+                <button
+                  onClick={() => handleDrumBpmChange(Math.min(180, drumBpm + 1))}
+                  className="w-5 h-5 rounded bg-gray-700 hover:bg-gray-600 text-gray-400 text-xs"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <input
               type="range"
@@ -254,6 +453,16 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
             />
           </div>
         </div>
+
+        {/* Sync BPM hint */}
+        {anyPlaying && deckA.analysis?.bpm && (
+          <button
+            onClick={() => handleDrumBpmChange(Math.round(deckA.analysis?.bpm || 120))}
+            className="mt-2 w-full py-1.5 bg-gray-700/50 hover:bg-gray-700 text-[10px] text-gray-400 hover:text-white rounded-lg transition-all"
+          >
+            Sync to track BPM ({Math.round(deckA.analysis?.bpm || 120)})
+          </button>
+        )}
       </div>
 
       {/* Crossfader */}
