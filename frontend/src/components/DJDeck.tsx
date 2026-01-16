@@ -35,9 +35,11 @@ export const DJDeck: React.FC<DJDeckProps> = ({ deck }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [stemsReady, setStemsReady] = useState(false);
   const [useStemsMode, setUseStemsMode] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
 
   const audioEngine = getAudioEngine();
 
@@ -215,7 +217,85 @@ export const DJDeck: React.FC<DJDeckProps> = ({ deck }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Get track duration in seconds
+  const getTrackDuration = (): number => {
+    if (deckState.track?.duration) {
+      return deckState.track.duration / 1000;
+    }
+    // Fallback: get from audio buffer
+    const buffer = audioEngine.getBuffer(deckState.track?.id ?? 0);
+    return buffer?.duration ?? 0;
+  };
+
+  // Seek to position
+  const seekTo = async (position: number) => {
+    if (!deckState.track) return;
+
+    const duration = getTrackDuration();
+    const seekTime = Math.max(0, Math.min(position * duration, duration - 0.1));
+
+    store.setDeckCurrentTime(deck, seekTime);
+
+    // If playing, restart at new position
+    if (deckState.isPlaying) {
+      audioEngine.stop(deck);
+      if (useStemsMode && stemsReady) {
+        await audioEngine.playStems(deck, deckState.track.id, seekTime, deckState.playbackRate);
+      } else {
+        await audioEngine.play(deck, deckState.track.id, seekTime, deckState.playbackRate);
+      }
+    }
+  };
+
+  // Handle timeline click
+  const handleTimelineClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!timelineRef.current || !deckState.track) return;
+
+    const rect = timelineRef.current.getBoundingClientRect();
+    const position = (e.clientX - rect.left) / rect.width;
+    seekTo(position);
+  };
+
+  // Handle timeline drag
+  const handleTimelineMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!deckState.track) return;
+    setIsSeeking(true);
+    handleTimelineClick(e);
+  };
+
+  // Handle mouse move for seeking
+  useEffect(() => {
+    if (!isSeeking) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!timelineRef.current) return;
+      const rect = timelineRef.current.getBoundingClientRect();
+      const position = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      seekTo(position);
+    };
+
+    const handleMouseUp = () => {
+      setIsSeeking(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isSeeking, deckState.track, useStemsMode, stemsReady]);
+
+  // Calculate progress percentage
+  const getProgressPercent = (): number => {
+    const duration = getTrackDuration();
+    if (duration <= 0) return 0;
+    return Math.min(100, (deckState.currentTime / duration) * 100);
+  };
+
   const deckColor = deck === 'A' ? 'dj-purple' : 'dj-blue';
+  const deckColorHex = deck === 'A' ? '#8B5CF6' : '#3B82F6';
 
   return (
     <div className={`bg-dj-dark rounded-xl p-6 border-2 border-${deckColor}/30`}>
@@ -294,23 +374,96 @@ export const DJDeck: React.FC<DJDeckProps> = ({ deck }) => {
       )}
 
       {/* Waveform */}
-      <div className="mb-4">
+      <div className="mb-2">
         <canvas
           ref={canvasRef}
           width={400}
-          height={80}
+          height={60}
           className="w-full rounded-lg"
         />
       </div>
 
-      {/* Time display */}
-      <div className="flex justify-between text-sm text-gray-400 mb-4">
-        <span>{formatTime(deckState.currentTime)}</span>
-        <span>
-          {deckState.track
-            ? formatTime(deckState.track.duration / 1000)
-            : '--:--'}
-        </span>
+      {/* Timeline / Seek Bar */}
+      <div className="mb-4">
+        <div
+          ref={timelineRef}
+          onMouseDown={handleTimelineMouseDown}
+          className={`relative h-8 bg-gray-800 rounded-lg cursor-pointer overflow-hidden group ${
+            !deckState.track ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
+        >
+          {/* Progress fill */}
+          <div
+            className="absolute top-0 left-0 h-full transition-all duration-100"
+            style={{
+              width: `${getProgressPercent()}%`,
+              background: `linear-gradient(90deg, ${deckColorHex}40 0%, ${deckColorHex} 100%)`,
+            }}
+          />
+
+          {/* Playhead */}
+          <div
+            className="absolute top-0 w-1 h-full bg-white shadow-lg transition-all duration-100"
+            style={{ left: `calc(${getProgressPercent()}% - 2px)` }}
+          />
+
+          {/* Time markers */}
+          <div className="absolute inset-0 flex items-center justify-between px-3 pointer-events-none">
+            <span className="text-xs font-medium text-white bg-black/50 px-1.5 py-0.5 rounded">
+              {formatTime(deckState.currentTime)}
+            </span>
+            <span className="text-xs text-gray-400 bg-black/50 px-1.5 py-0.5 rounded">
+              {deckState.track ? formatTime(getTrackDuration()) : '--:--'}
+            </span>
+          </div>
+
+          {/* Hover effect */}
+          <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </div>
+
+        {/* Quick seek buttons */}
+        <div className="flex items-center justify-center gap-2 mt-2">
+          <button
+            onClick={() => seekTo(Math.max(0, (deckState.currentTime - 10) / getTrackDuration()))}
+            disabled={!deckState.track}
+            className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded transition-colors"
+            title="Back 10s"
+          >
+            -10s
+          </button>
+          <button
+            onClick={() => seekTo(Math.max(0, (deckState.currentTime - 5) / getTrackDuration()))}
+            disabled={!deckState.track}
+            className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded transition-colors"
+            title="Back 5s"
+          >
+            -5s
+          </button>
+          <button
+            onClick={() => seekTo(0)}
+            disabled={!deckState.track}
+            className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-50 rounded font-medium transition-colors"
+            title="Go to start"
+          >
+            ⏮
+          </button>
+          <button
+            onClick={() => seekTo(Math.min(1, (deckState.currentTime + 5) / getTrackDuration()))}
+            disabled={!deckState.track}
+            className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded transition-colors"
+            title="Forward 5s"
+          >
+            +5s
+          </button>
+          <button
+            onClick={() => seekTo(Math.min(1, (deckState.currentTime + 10) / getTrackDuration()))}
+            disabled={!deckState.track}
+            className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 disabled:opacity-50 rounded transition-colors"
+            title="Forward 10s"
+          >
+            +10s
+          </button>
+        </div>
       </div>
 
       {/* Transport controls */}
