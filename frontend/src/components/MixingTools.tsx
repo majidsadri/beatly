@@ -62,9 +62,12 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
     audioEngine.setDrumLoopVolume(vol / 100);
   };
 
-  // Auto crossfade - FIXED: starts from current position
+  // Auto crossfade - performs smooth crossfade between decks
   const startAutoMix = async (direction: 'AtoB' | 'BtoA') => {
     if (isAutoMixing) return;
+
+    // Ensure audio context is active
+    await audioEngine.resume();
 
     setIsAutoMixing(true);
 
@@ -82,17 +85,6 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
     const increment = (endValue - startValue) / steps;
 
     let currentValue = startValue;
-
-    // Start the target deck if not playing
-    if (direction === 'AtoB' && deckB.track && !deckB.isPlaying) {
-      await audioEngine.resume();
-      await audioEngine.play('B', deckB.track.id, 0, deckB.playbackRate);
-      store.setDeckPlaying('B', true);
-    } else if (direction === 'BtoA' && deckA.track && !deckA.isPlaying) {
-      await audioEngine.resume();
-      await audioEngine.play('A', deckA.track.id, 0, deckA.playbackRate);
-      store.setDeckPlaying('A', true);
-    }
 
     const interval = setInterval(() => {
       currentValue += increment;
@@ -139,7 +131,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
     setSyncEnabled(true);
   };
 
+  // For auto-mix, both decks should be playing
   const canMix = deckA.track && deckB.track;
+  const bothPlaying = deckA.isPlaying && deckB.isPlaying;
 
   return (
     <div className="bg-gradient-to-b from-gray-900/90 to-gray-900/70 rounded-2xl border border-gray-800/50 p-4">
@@ -163,6 +157,36 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
             <span className="text-xs text-violet-400">Mixing...</span>
           </div>
         )}
+      </div>
+
+      {/* Deck Status */}
+      <div className="grid grid-cols-2 gap-2 mb-4 p-2 bg-gray-800/50 rounded-xl">
+        <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${deckA.isPlaying ? 'bg-violet-500/20' : 'bg-gray-700/50'}`}>
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${deckA.isPlaying ? 'bg-violet-500 text-white' : 'bg-gray-600 text-gray-400'}`}>
+            A
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-xs font-medium truncate ${deckA.track ? 'text-white' : 'text-gray-500'}`}>
+              {deckA.track?.title || 'No track'}
+            </p>
+            <p className={`text-[10px] ${deckA.isPlaying ? 'text-violet-400' : 'text-gray-500'}`}>
+              {deckA.isPlaying ? 'Playing' : deckA.track ? 'Ready' : 'Empty'}
+            </p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${deckB.isPlaying ? 'bg-blue-500/20' : 'bg-gray-700/50'}`}>
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${deckB.isPlaying ? 'bg-blue-500 text-white' : 'bg-gray-600 text-gray-400'}`}>
+            B
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className={`text-xs font-medium truncate ${deckB.track ? 'text-white' : 'text-gray-500'}`}>
+              {deckB.track?.title || 'No track'}
+            </p>
+            <p className={`text-[10px] ${deckB.isPlaying ? 'text-blue-400' : 'text-gray-500'}`}>
+              {deckB.isPlaying ? 'Playing' : deckB.track ? 'Ready' : 'Empty'}
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Drum Loop Section */}
@@ -266,8 +290,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       <div className="grid grid-cols-2 gap-2 mb-4">
         <button
           onClick={() => startAutoMix('BtoA')}
-          disabled={!canMix || isAutoMixing}
+          disabled={!deckA.isPlaying || isAutoMixing}
           className="flex items-center justify-center gap-2 py-2.5 px-3 bg-violet-500/20 hover:bg-violet-500/30 disabled:bg-gray-800/50 disabled:opacity-50 text-violet-400 disabled:text-gray-500 rounded-xl text-xs font-medium transition-all"
+          title={!deckA.isPlaying ? 'Start playing on Deck A first' : 'Crossfade from B to A'}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -276,8 +301,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
         </button>
         <button
           onClick={() => startAutoMix('AtoB')}
-          disabled={!canMix || isAutoMixing}
+          disabled={!deckB.isPlaying || isAutoMixing}
           className="flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-500/20 hover:bg-blue-500/30 disabled:bg-gray-800/50 disabled:opacity-50 text-blue-400 disabled:text-gray-500 rounded-xl text-xs font-medium transition-all"
+          title={!deckB.isPlaying ? 'Start playing on Deck B first' : 'Crossfade from A to B'}
         >
           Fade to B
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -285,6 +311,19 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
           </svg>
         </button>
       </div>
+
+      {/* Hint when not mixing */}
+      {!bothPlaying && canMix && (
+        <div className="mb-4 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+          <p className="text-[10px] text-yellow-500/80 text-center">
+            {!deckA.isPlaying && !deckB.isPlaying
+              ? 'Play tracks on both decks to enable mixing'
+              : !deckA.isPlaying
+                ? 'Play a track on Deck A to enable full mixing'
+                : 'Play a track on Deck B to enable full mixing'}
+          </p>
+        </div>
+      )}
 
       {/* Fade Time */}
       <div className="mb-4">
@@ -314,12 +353,19 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       <div className="flex gap-2">
         <button
           onClick={syncBPM}
-          disabled={!deckA.analysis?.bpm || !deckB.analysis?.bpm}
+          disabled={!deckA.analysis?.bpm || !deckB.analysis?.bpm || !bothPlaying}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-medium transition-all ${
             syncEnabled
               ? 'bg-green-500/20 text-green-400 border border-green-500/30'
               : 'bg-gray-800 hover:bg-gray-700 text-gray-300 disabled:opacity-50 disabled:text-gray-500'
           }`}
+          title={
+            !deckA.analysis?.bpm || !deckB.analysis?.bpm
+              ? 'BPM analysis required for both tracks'
+              : !bothPlaying
+                ? 'Both decks must be playing'
+                : 'Sync BPM of the incoming track to the playing track'
+          }
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -333,7 +379,8 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
             audioEngine.setCrossfader(0);
             onCrossfadeChange(0);
           }}
-          className="flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-medium transition-all"
+          disabled={isAutoMixing}
+          className="flex items-center justify-center gap-2 py-2.5 px-4 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 rounded-xl text-xs font-medium transition-all"
         >
           Center
         </button>
