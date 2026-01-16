@@ -171,8 +171,13 @@ echo "Installing dependencies..."
 echo ""
 
 # Install Node.js dependencies
-echo "Installing Node.js dependencies..."
+echo "Installing root dependencies..."
 npm install
+
+echo "Installing frontend dependencies..."
+cd frontend
+npm install
+cd ..
 
 # Install Python dependencies in virtual environment
 echo ""
