@@ -74,8 +74,24 @@ npm install
 echo ""
 echo "Installing Python dependencies..."
 cd backend
+
+# Check if pip is available
+if ! python3 -m pip --version &> /dev/null; then
+    echo -e "${RED}pip not found. Installing pip...${NC}"
+    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+    python3 get-pip.py
+    rm get-pip.py
+fi
+
 python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements.txt
+
+# Install with verbose output on failure
+if ! python3 -m pip install -r requirements.txt; then
+    echo ""
+    echo -e "${YELLOW}Some packages failed to install. Trying with --user flag...${NC}"
+    python3 -m pip install --user -r requirements.txt
+fi
+
 cd ..
 
 # Create uploads directory if it doesn't exist
