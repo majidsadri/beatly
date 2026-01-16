@@ -345,9 +345,15 @@ export class AudioEngine {
       this.initContext();
     }
 
-    // Add cache-busting parameter to prevent browser caching issues
+    // Add cache-busting parameter and use no-store to completely bypass cache
     const cacheBustUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-    const response = await fetch(cacheBustUrl);
+    const response = await fetch(cacheBustUrl, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch track: ${response.statusText}`);
     }
@@ -380,9 +386,15 @@ export class AudioEngine {
       this.initContext();
     }
 
-    // Add cache-busting parameter
+    // Add cache-busting parameter and bypass browser cache
     const cacheBustUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-    const response = await fetch(cacheBustUrl);
+    const response = await fetch(cacheBustUrl, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     if (!response.ok) {
       throw new Error(`Failed to fetch stem: ${response.statusText}`);
     }
