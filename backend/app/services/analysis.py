@@ -316,9 +316,12 @@ async def separate_stems(track_id: int, audio_path: Path) -> dict:
             ]
 
             import subprocess
+            print(f"Running Demucs: {' '.join(cmd)}")
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
             if result.returncode != 0:
+                print(f"Demucs stdout: {result.stdout}")
+                print(f"Demucs stderr: {result.stderr}")
                 raise Exception(f"Demucs failed: {result.stderr}")
 
             # Move stems to correct location

@@ -73,6 +73,16 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+# Verify Demucs installation
+echo ""
+echo "Verifying Demucs installation..."
+if python -c "import demucs; import torch; print(f'Demucs {demucs.__version__} with PyTorch {torch.__version__}')" 2>/dev/null; then
+    echo "  Demucs is ready for stem separation"
+else
+    echo "  WARNING: Demucs not working. Stem separation will use fallback mode."
+    echo "  To fix, try: pip install demucs torch torchaudio"
+fi
+
 # Create cache directories
 mkdir -p cache/uploads cache/stems cache/analysis
 
@@ -86,10 +96,9 @@ echo ""
 echo "Starting Beatly..."
 echo ""
 
-# Start backend in background
+# Start backend in background (using venv python directly)
 cd backend
-source venv/bin/activate
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+./venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 BACKEND_PID=$!
 cd ..
 
