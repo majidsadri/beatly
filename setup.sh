@@ -70,28 +70,29 @@ echo ""
 echo "Installing Node.js dependencies..."
 npm install
 
-# Install Python dependencies
+# Install Python dependencies in virtual environment
 echo ""
-echo "Installing Python dependencies..."
+echo "Setting up Python virtual environment..."
 cd backend
 
-# Check if pip is available
-if ! python3 -m pip --version &> /dev/null; then
-    echo -e "${RED}pip not found. Installing pip...${NC}"
-    curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-    python3 get-pip.py
-    rm get-pip.py
+# Create venv if it doesn't exist
+if [ ! -d "venv" ]; then
+    echo "Creating virtual environment..."
+    python3 -m venv venv
 fi
 
-python3 -m pip install --upgrade pip
+# Activate venv
+source venv/bin/activate
 
-# Install with verbose output on failure
-if ! python3 -m pip install -r requirements.txt; then
-    echo ""
-    echo -e "${YELLOW}Some packages failed to install. Trying with --user flag...${NC}"
-    python3 -m pip install --user -r requirements.txt
-fi
+# Upgrade pip in venv
+echo "Upgrading pip..."
+pip install --upgrade pip
 
+# Install dependencies
+echo "Installing Python dependencies..."
+pip install -r requirements.txt
+
+deactivate
 cd ..
 
 # Create uploads directory if it doesn't exist
@@ -102,15 +103,19 @@ echo -e "${GREEN}=========================================="
 echo "  Setup Complete!"
 echo "==========================================${NC}"
 echo ""
-echo "To start the application, run:"
+echo "Starting the application..."
 echo ""
-echo "  npm run dev"
+echo "  App:  http://localhost:5173"
+echo "  API:  http://localhost:8000"
 echo ""
-echo "Then open your browser to:"
-echo ""
-echo "  http://localhost:5173"
-echo ""
-echo "For mobile testing on the same network:"
-echo ""
-echo "  http://$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 2>/dev/null || echo "YOUR_IP"):5173"
-echo ""
+
+# Get local IP for mobile testing
+LOCAL_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ipconfig getifaddr en0 2>/dev/null || echo "")
+if [ -n "$LOCAL_IP" ]; then
+    echo "For mobile testing on the same network:"
+    echo "  http://${LOCAL_IP}:5173"
+    echo ""
+fi
+
+# Start the app
+npm run dev
