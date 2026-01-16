@@ -18,45 +18,120 @@ NC='\033[0m' # No Color
 
 # Check Node.js
 echo -n "Checking Node.js... "
+NODE_OK=false
 if command -v node &> /dev/null; then
     NODE_VERSION=$(node -v | cut -d'v' -f2 | cut -d'.' -f1)
     if [ "$NODE_VERSION" -ge 18 ]; then
         echo -e "${GREEN}OK${NC} ($(node -v))"
+        NODE_OK=true
     else
-        echo -e "${RED}FAILED${NC}"
-        echo "Node.js 18+ is required. Current version: $(node -v)"
-        echo "Please update Node.js: https://nodejs.org"
-        exit 1
+        echo -e "${RED}OUTDATED${NC} ($(node -v))"
+        echo "Node.js 18+ is required."
     fi
 else
     echo -e "${RED}NOT FOUND${NC}"
-    echo "Node.js is required. Please install it from: https://nodejs.org"
-    exit 1
 fi
 
-# Find best Python version (prefer 3.11, 3.10, 3.9, then python3)
+if [ "$NODE_OK" = false ]; then
+    echo ""
+    # Check if on macOS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v brew &> /dev/null; then
+            read -p "Would you like to install Node.js via Homebrew now? (y/n) " -n 1 -r
+            echo ""
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                echo "Installing Node.js via Homebrew..."
+                brew install node
+                echo -e "${GREEN}Node.js installed successfully!${NC}"
+            else
+                echo "Please install Node.js and run this script again."
+                echo "  brew install node"
+                echo "  OR download from: https://nodejs.org"
+                exit 1
+            fi
+        else
+            echo "Please install Node.js:"
+            echo "  Option 1: Install Homebrew first"
+            echo "    /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            echo "    brew install node"
+            echo ""
+            echo "  Option 2: Download from https://nodejs.org"
+            exit 1
+        fi
+    else
+        echo "Please install Node.js 18+ from: https://nodejs.org"
+        exit 1
+    fi
+fi
+
+# Find best Python version (prefer 3.12, 3.11, 3.10, 3.9)
 echo -n "Checking Python... "
 PYTHON_CMD=""
 for cmd in python3.12 python3.11 python3.10 python3.9 python3; do
     if command -v $cmd &> /dev/null; then
-        VERSION=$($cmd -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-        MAJOR=$(echo $VERSION | cut -d'.' -f1)
-        MINOR=$(echo $VERSION | cut -d'.' -f2)
-        if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 9 ]; then
-            PYTHON_CMD=$cmd
-            break
+        VERSION=$($cmd -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null)
+        if [ -n "$VERSION" ]; then
+            MAJOR=$(echo $VERSION | cut -d'.' -f1)
+            MINOR=$(echo $VERSION | cut -d'.' -f2)
+            if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 9 ]; then
+                PYTHON_CMD=$cmd
+                break
+            fi
         fi
     fi
 done
 
 if [ -z "$PYTHON_CMD" ]; then
     echo -e "${RED}NOT FOUND${NC}"
-    echo "Python 3.9+ is required. Please install it from: https://python.org"
-    exit 1
+    echo ""
+    echo "Python 3.9+ is required but not installed."
+    echo ""
+
+    # Check if on macOS
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "To install Python on macOS, choose one option:"
+        echo ""
+
+        # Check if Homebrew is installed
+        if command -v brew &> /dev/null; then
+            echo "  Option 1 (Recommended - you have Homebrew):"
+            echo "    brew install python@3.11"
+            echo ""
+            echo "  Option 2: Download from python.org"
+            echo "    https://www.python.org/downloads/macos/"
+            echo ""
+
+            read -p "Would you like to install Python via Homebrew now? (y/n) " -n 1 -r
+            echo ""
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                echo "Installing Python 3.11 via Homebrew..."
+                brew install python@3.11
+                PYTHON_CMD="python3.11"
+                echo -e "${GREEN}Python installed successfully!${NC}"
+            else
+                echo "Please install Python and run this script again."
+                exit 1
+            fi
+        else
+            echo "  Option 1 (Recommended): Install Homebrew first, then Python"
+            echo "    /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            echo "    brew install python@3.11"
+            echo ""
+            echo "  Option 2: Download from python.org"
+            echo "    https://www.python.org/downloads/macos/"
+            echo ""
+            exit 1
+        fi
+    else
+        echo "Please install Python 3.9+ from: https://python.org"
+        exit 1
+    fi
 fi
 
-PYTHON_VERSION=$($PYTHON_CMD --version)
-echo -e "${GREEN}OK${NC} ($PYTHON_VERSION using '$PYTHON_CMD')"
+if [ -n "$PYTHON_CMD" ]; then
+    PYTHON_VERSION=$($PYTHON_CMD --version)
+    echo -e "${GREEN}OK${NC} ($PYTHON_VERSION using '$PYTHON_CMD')"
+fi
 
 # Check npm
 echo -n "Checking npm... "
