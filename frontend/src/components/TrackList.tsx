@@ -203,6 +203,16 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
     }
 
     if (newTracks.length > 0) {
+      // Set up playlist if not already set
+      if (!store.selectedPlaylist) {
+        store.selectPlaylist({
+          id: -1,
+          title: 'My Uploads',
+          user: { id: 0, username: 'Local', avatar_url: '', permalink_url: '' },
+          artwork_url: null,
+          track_count: newTracks.length,
+        });
+      }
       setTracks([...tracks, ...newTracks]);
     }
     setUploading(false);
