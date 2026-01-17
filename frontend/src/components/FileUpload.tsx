@@ -124,15 +124,65 @@ export const FileUpload: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-8">
       <div className="max-w-2xl w-full">
-        {/* Header */}
+        {/* Animated Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-dj-purple via-dj-blue to-dj-pink bg-clip-text text-transparent mb-4">
-            Beatly
-          </h1>
+          {/* Animated Beatly Logo */}
+          <div className="relative inline-block mb-6">
+            {/* Glow effect behind */}
+            <div className="absolute inset-0 blur-2xl opacity-50">
+              <div className="text-6xl font-bold bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent animate-pulse">
+                Beatly
+              </div>
+            </div>
+
+            {/* Main title with beat animation */}
+            <h1 className="relative text-6xl font-bold">
+              {['B', 'e', 'a', 't', 'l', 'y'].map((letter, index) => (
+                <span
+                  key={index}
+                  className="inline-block bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent"
+                  style={{
+                    animation: `beatPulse 0.6s ease-in-out infinite`,
+                    animationDelay: `${index * 0.1}s`,
+                  }}
+                >
+                  {letter}
+                </span>
+              ))}
+            </h1>
+
+            {/* Equalizer bars under the title */}
+            <div className="flex justify-center gap-1 mt-3">
+              {[...Array(12)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-1.5 rounded-full bg-gradient-to-t from-violet-500 via-fuchsia-500 to-pink-500"
+                  style={{
+                    animation: `eqBar 0.5s ease-in-out infinite`,
+                    animationDelay: `${i * 0.05}s`,
+                    height: '20px',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
           <p className="text-gray-400 text-lg">
             Upload your tracks and start mixing like a DJ
           </p>
         </div>
+
+        {/* CSS Animations */}
+        <style>{`
+          @keyframes beatPulse {
+            0%, 100% { transform: scale(1) translateY(0); }
+            50% { transform: scale(1.05) translateY(-2px); }
+          }
+          @keyframes eqBar {
+            0%, 100% { height: 8px; opacity: 0.5; }
+            50% { height: 24px; opacity: 1; }
+          }
+        `}</style>
 
         {/* Upload area */}
         <div
