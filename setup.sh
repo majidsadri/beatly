@@ -73,11 +73,21 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Verify Demucs installation
+# Verify Demucs installation and download models
 echo ""
 echo "Verifying Demucs installation..."
 if python -c "import demucs; import torch; print(f'Demucs {demucs.__version__} with PyTorch {torch.__version__}')" 2>/dev/null; then
-    echo "  Demucs is ready for stem separation"
+    echo "  Demucs is installed"
+    echo ""
+    echo "Downloading Demucs model (htdemucs)... This may take a while on first run."
+    python -c "
+from demucs.pretrained import get_model
+try:
+    model = get_model('htdemucs')
+    print('  Model downloaded and ready!')
+except Exception as e:
+    print(f'  WARNING: Could not download model: {e}')
+" 2>/dev/null || echo "  WARNING: Model download failed. Will try on first use."
 else
     echo "  WARNING: Demucs not working. Stem separation will use fallback mode."
     echo "  To fix, try: pip install demucs torch torchaudio"
