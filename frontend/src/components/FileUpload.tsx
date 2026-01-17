@@ -25,6 +25,16 @@ export const FileUpload: React.FC = () => {
     setError(null);
     setUploadProgress([]);
 
+    // Clear all caches before uploading new files
+    try {
+      await fetch('/api/uploads/cache', { method: 'DELETE' });
+      const audioEngine = getAudioEngine();
+      audioEngine.clearCache();
+      setUploadProgress(['Cleared cache...']);
+    } catch {
+      // Continue even if cache clear fails
+    }
+
     const uploadedTracks: SoundCloudTrack[] = [];
 
     for (let i = 0; i < files.length; i++) {
@@ -78,10 +88,6 @@ export const FileUpload: React.FC = () => {
     }
 
     if (uploadedTracks.length > 0) {
-      // Clear audio engine cache to prevent playing old cached audio
-      const audioEngine = getAudioEngine();
-      audioEngine.clearCache();
-
       // Create a fake playlist for the uploaded tracks
       selectPlaylist({
         id: -1,

@@ -50,6 +50,24 @@ def get_next_id() -> int:
     return track_id
 
 
+@router.delete("/cache")
+async def clear_cache():
+    """Clear all cached files (uploads, stems, analysis)."""
+    import shutil
+    for subdir in ["uploads", "stems", "analysis"]:
+        cache_path = UPLOAD_DIR.parent / subdir
+        if cache_path.exists():
+            shutil.rmtree(cache_path)
+            cache_path.mkdir(parents=True, exist_ok=True)
+
+    # Clear in-memory database
+    global _tracks_db, _next_id
+    _tracks_db.clear()
+    _next_id = 1
+
+    return {"status": "cache cleared"}
+
+
 @router.post("/upload")
 @limiter.limit("20/minute")
 async def upload_track(request: Request, file: UploadFile = File(...)) -> UploadedTrack:
