@@ -227,39 +227,86 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
   // Start track on a deck
   const startDeck = useCallback(async (deck: 'A' | 'B') => {
     const deckState = deck === 'A' ? deckA : deckB;
-    if (!deckState.track) return;
+    if (!deckState.track) {
+      console.log(`[AutoMix] No track on deck ${deck}`);
+      return false;
+    }
 
     await audioEngine.resume();
-    await audioEngine.play(deck, deckState.track.id, 0, deckState.playbackRate);
+
+    // Make sure track is loaded in audio engine
+    const trackId = deckState.track.id;
+    if (!audioEngine.getBuffer(trackId)) {
+      console.log(`[AutoMix] Loading track ${trackId} for deck ${deck}`);
+      const streamUrl = `/api/uploads/tracks/${trackId}/stream`;
+      await audioEngine.loadTrack(trackId, streamUrl, true);
+    }
+
+    // Check if stems are available and use them
+    const stemStatus = await fetch(`/api/uploads/tracks/${trackId}/stems/status`).then(r => r.ok ? r.json() : null).catch(() => null);
+
+    if (stemStatus?.status === 'ready') {
+      console.log(`[AutoMix] Playing deck ${deck} with stems`);
+      await audioEngine.loadAllStems(trackId, false);
+      await audioEngine.playStems(deck, trackId, 0, deckState.playbackRate);
+    } else {
+      console.log(`[AutoMix] Playing deck ${deck} without stems`);
+      await audioEngine.play(deck, trackId, 0, deckState.playbackRate);
+    }
+
     store.setDeckPlaying(deck, true);
+    return true;
   }, [deckA, deckB, audioEngine, store]);
 
   // Perform the auto mix transition
   const performAutoMixTransition = useCallback(async () => {
-    if (isAutoMixing) return;
+    if (isAutoMixing) {
+      console.log('[AutoMix] Already mixing, skipping');
+      return;
+    }
 
     const activeDeck = deckA.isPlaying && !deckB.isPlaying ? 'A' : deckB.isPlaying && !deckA.isPlaying ? 'B' : null;
-    if (!activeDeck) return;
+    if (!activeDeck) {
+      console.log('[AutoMix] No single active deck, skipping');
+      return;
+    }
 
+    console.log(`[AutoMix] Starting transition from deck ${activeDeck}`);
     const targetDeck = activeDeck === 'A' ? 'B' : 'A';
 
     // Load next track if needed
     const targetState = targetDeck === 'A' ? deckA : deckB;
     if (!targetState.track) {
+      console.log(`[AutoMix] Loading next track to deck ${targetDeck}`);
       const loaded = await loadNextTrack(targetDeck);
-      if (!loaded) return;
+      if (!loaded) {
+        console.log('[AutoMix] Failed to load next track');
+        return;
+      }
+      // Small delay to let store update
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
 
     // Start the target deck
-    await startDeck(targetDeck);
+    console.log(`[AutoMix] Starting deck ${targetDeck}`);
+    const started = await startDeck(targetDeck);
+    if (!started) {
+      console.log(`[AutoMix] Failed to start deck ${targetDeck}`);
+      return;
+    }
+
+    // Wait a moment for audio to actually start
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     // Sync BPM if both have analysis
     if (deckA.analysis?.bpm && deckB.analysis?.bpm) {
+      console.log('[AutoMix] Syncing BPM');
       syncBPM();
     }
 
     // Start the crossfade
     const direction = activeDeck === 'A' ? 'AtoB' : 'BtoA';
+    console.log(`[AutoMix] Starting crossfade ${direction}`);
     startAutoMix(direction);
 
     // Update ref for next transition
@@ -791,9 +838,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       <div className="grid grid-cols-2 gap-2 mb-4">
         <button
           onClick={() => startAutoMix('BtoA')}
-          disabled={!deckA.isPlaying || isAutoMixing}
+          disabled={!bothPlaying || isAutoMixing}
           className="flex items-center justify-center gap-2 py-2.5 px-3 bg-violet-500/20 hover:bg-violet-500/30 disabled:bg-gray-800/50 disabled:opacity-50 text-violet-400 disabled:text-gray-500 rounded-xl text-xs font-medium transition-all"
-          title={!deckA.isPlaying ? 'Start playing on Deck A first' : 'Crossfade from B to A'}
+          title={!bothPlaying ? 'Both decks must be playing' : 'Crossfade to Deck A'}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -802,9 +849,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
         </button>
         <button
           onClick={() => startAutoMix('AtoB')}
-          disabled={!deckB.isPlaying || isAutoMixing}
+          disabled={!bothPlaying || isAutoMixing}
           className="flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-500/20 hover:bg-blue-500/30 disabled:bg-gray-800/50 disabled:opacity-50 text-blue-400 disabled:text-gray-500 rounded-xl text-xs font-medium transition-all"
-          title={!deckB.isPlaying ? 'Start playing on Deck B first' : 'Crossfade from A to B'}
+          title={!bothPlaying ? 'Both decks must be playing' : 'Crossfade to Deck B'}
         >
           Fade to B
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

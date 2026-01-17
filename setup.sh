@@ -53,18 +53,62 @@ if ! command -v ffmpeg &> /dev/null; then
     echo "WARNING: ffmpeg is not installed."
     echo "         Audio processing (especially Demucs) requires ffmpeg."
     echo ""
-    echo "  Install ffmpeg:"
-    echo "    macOS:   brew install ffmpeg"
-    echo "    Ubuntu:  sudo apt install ffmpeg"
-    echo "    Windows: Download from https://ffmpeg.org/download.html"
-    echo ""
-    read -p "Continue without ffmpeg? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
+
+    # Try to install ffmpeg automatically
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS - try Homebrew
+        if command -v brew &> /dev/null; then
+            echo "Attempting to install ffmpeg via Homebrew..."
+            brew install ffmpeg
+        else
+            echo "  Homebrew not found. Install ffmpeg manually:"
+            echo "    1. Install Homebrew: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+            echo "    2. Then run: brew install ffmpeg"
+            echo ""
+            read -p "Continue without ffmpeg? (y/N) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
+        # Linux - try apt
+        if command -v apt &> /dev/null; then
+            echo "Attempting to install ffmpeg via apt..."
+            sudo apt update && sudo apt install -y ffmpeg
+        elif command -v yum &> /dev/null; then
+            echo "Attempting to install ffmpeg via yum..."
+            sudo yum install -y ffmpeg
+        else
+            echo "  Install ffmpeg manually:"
+            echo "    Ubuntu/Debian: sudo apt install ffmpeg"
+            echo "    Fedora/RHEL:   sudo yum install ffmpeg"
+            echo ""
+            read -p "Continue without ffmpeg? (y/N) " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                exit 1
+            fi
+        fi
+    else
+        echo "  Install ffmpeg:"
+        echo "    macOS:   brew install ffmpeg"
+        echo "    Ubuntu:  sudo apt install ffmpeg"
+        echo "    Windows: Download from https://ffmpeg.org/download.html"
+        echo ""
+        read -p "Continue without ffmpeg? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            exit 1
+        fi
     fi
-else
+fi
+
+# Verify ffmpeg after potential install
+if command -v ffmpeg &> /dev/null; then
     echo "  ffmpeg $(ffmpeg -version 2>&1 | head -1 | cut -d' ' -f3)"
+else
+    echo "  WARNING: ffmpeg still not available. Stem separation may fail."
 fi
 
 echo ""
