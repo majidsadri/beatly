@@ -190,7 +190,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
             user: {
               id: 0,
               username: 'Local File',
-              avatar_url: null,
+              avatar_url: '',
               permalink_url: '',
             },
             waveform_url: '',
@@ -635,19 +635,19 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
 
 
   return (
-    <div className="bg-gradient-to-b from-gray-900/90 to-gray-900/70 rounded-2xl border border-gray-800/50 overflow-hidden">
+    <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
       {/* Header */}
-      <div className="p-4 border-b border-gray-800/50">
+      <div className="p-5 border-b border-white/10 bg-gradient-to-r from-cyan-500/10 via-transparent to-emerald-500/10">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
               </svg>
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-white">Playlist</h2>
-              <p className="text-xs text-gray-500">{tracks.length} tracks</p>
+              <h2 className="text-base font-semibold text-white">Tracks</h2>
+              <p className="text-xs text-gray-400">{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'} loaded</p>
             </div>
           </div>
 
@@ -655,16 +655,16 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium rounded-lg transition-all"
+            className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-xl transition-all border border-white/10 hover:border-white/20"
           >
             {uploading ? (
-              <span className="w-3 h-3 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
             ) : (
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             )}
-            Add
+            Add Tracks
           </button>
           <input
             ref={fileInputRef}
@@ -677,28 +677,28 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
         </div>
       </div>
 
-      {/* Auto Mix Bar - Common timeline for all playing tracks */}
+      {/* Now Playing Bar */}
       {Object.values(playStates).some(s => s.isPlaying) && (
-        <div className="p-4 border-b border-gray-800/50 bg-gradient-to-r from-violet-900/30 via-gray-900/50 to-blue-900/30">
+        <div className="p-4 border-b border-white/5 bg-gradient-to-r from-cyan-500/10 via-transparent to-emerald-500/10">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Auto Mix</span>
-              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/20 rounded-full">
-                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                <span className="text-[9px] text-green-400">LIVE</span>
+              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-semibold">Now Playing</span>
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-500/20 rounded-full border border-emerald-500/30">
+                <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                <span className="text-[9px] text-emerald-400 font-medium">LIVE</span>
               </span>
             </div>
             <div className="flex items-center gap-2">
               {Object.values(playStates).filter(s => s.isPlaying).length === 2 && (
-                <span className="text-[10px] text-violet-400">2 tracks mixing</span>
+                <span className="text-[10px] text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">2 decks active</span>
               )}
             </div>
           </div>
 
           {/* Combined Timeline */}
           <div className="mb-3">
-            <div className="relative h-4 bg-gray-800/80 rounded-full overflow-hidden">
+            <div className="relative h-3 bg-white/5 rounded-full overflow-hidden backdrop-blur">
               {/* Deck A progress */}
               {(() => {
                 const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
@@ -706,8 +706,8 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                   const progress = trackA[1].duration > 0 ? (trackA[1].currentTime / trackA[1].duration) * 100 : 0;
                   return (
                     <div
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-violet-600 to-violet-400 transition-all duration-100"
-                      style={{ width: `${progress}%`, opacity: 0.8 }}
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-100"
+                      style={{ width: `${progress}%`, opacity: 0.9 }}
                     />
                   );
                 }
@@ -720,33 +720,31 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                   const progress = trackB[1].duration > 0 ? (trackB[1].currentTime / trackB[1].duration) * 100 : 0;
                   return (
                     <div
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-600 to-blue-400 transition-all duration-100"
-                      style={{ width: `${progress}%`, opacity: 0.5 }}
+                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-100"
+                      style={{ width: `${progress}%`, opacity: 0.6 }}
                     />
                   );
                 }
                 return null;
               })()}
-              {/* Center line */}
-              <div className="absolute top-0 left-1/2 w-0.5 h-full bg-gray-600" />
             </div>
 
             {/* Time display */}
-            <div className="flex justify-between mt-1">
+            <div className="flex justify-between mt-1.5">
               {(() => {
                 const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
                 const time = trackA ? trackA[1].currentTime : 0;
                 const mins = Math.floor(time / 60);
                 const secs = Math.floor(time % 60);
-                return <span className="text-[10px] text-violet-400">{mins}:{secs.toString().padStart(2, '0')}</span>;
+                return <span className="text-[10px] text-cyan-400 font-medium">{mins}:{secs.toString().padStart(2, '0')}</span>;
               })()}
-              <span className="text-[9px] text-gray-500">MIX TIMELINE</span>
+              <span className="text-[9px] text-gray-500 uppercase tracking-wider">Mix Timeline</span>
               {(() => {
                 const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
                 const time = trackB ? trackB[1].currentTime : 0;
                 const mins = Math.floor(time / 60);
                 const secs = Math.floor(time % 60);
-                return <span className="text-[10px] text-blue-400">{mins}:{secs.toString().padStart(2, '0')}</span>;
+                return <span className="text-[10px] text-emerald-400 font-medium">{mins}:{secs.toString().padStart(2, '0')}</span>;
               })()}
             </div>
           </div>
@@ -754,42 +752,42 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
           {/* Deck Cards */}
           <div className="grid grid-cols-2 gap-3">
             {/* Deck A */}
-            <div className={`p-2 rounded-lg border ${
+            <div className={`p-3 rounded-xl border backdrop-blur transition-all ${
               Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A')
-                ? 'bg-violet-500/10 border-violet-500/30'
-                : 'bg-gray-800/30 border-gray-700/30'
+                ? 'bg-cyan-500/10 border-cyan-500/30 shadow-lg shadow-cyan-500/10'
+                : 'bg-white/5 border-white/10'
             }`}>
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center text-[10px] font-bold text-white">A</span>
+                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center text-[11px] font-bold text-white shadow-lg">A</span>
                 <div className="flex-1 min-w-0">
                   {(() => {
                     const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
                     if (trackA) {
                       const track = tracks.find(t => t.id === Number(trackA[0]));
-                      return <p className="text-[10px] text-white font-medium truncate">{track?.title || 'Unknown'}</p>;
+                      return <p className="text-[11px] text-white font-medium truncate">{track?.title || 'Unknown'}</p>;
                     }
-                    return <p className="text-[10px] text-gray-500">No track</p>;
+                    return <p className="text-[11px] text-gray-500">Empty</p>;
                   })()}
                 </div>
               </div>
             </div>
 
             {/* Deck B */}
-            <div className={`p-2 rounded-lg border ${
+            <div className={`p-3 rounded-xl border backdrop-blur transition-all ${
               Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B')
-                ? 'bg-blue-500/10 border-blue-500/30'
-                : 'bg-gray-800/30 border-gray-700/30'
+                ? 'bg-emerald-500/10 border-emerald-500/30 shadow-lg shadow-emerald-500/10'
+                : 'bg-white/5 border-white/10'
             }`}>
               <div className="flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white">B</span>
+                <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-[11px] font-bold text-white shadow-lg">B</span>
                 <div className="flex-1 min-w-0">
                   {(() => {
                     const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
                     if (trackB) {
                       const track = tracks.find(t => t.id === Number(trackB[0]));
-                      return <p className="text-[10px] text-white font-medium truncate">{track?.title || 'Unknown'}</p>;
+                      return <p className="text-[11px] text-white font-medium truncate">{track?.title || 'Unknown'}</p>;
                     }
-                    return <p className="text-[10px] text-gray-500">No track</p>;
+                    return <p className="text-[11px] text-gray-500">Empty</p>;
                   })()}
                 </div>
               </div>
@@ -799,19 +797,28 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       )}
 
       {/* Track List */}
-      <div className="max-h-[600px] overflow-y-auto">
+      <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
         {tracks.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-800/50 flex items-center justify-center">
-              <svg className="w-8 h-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="p-12 text-center">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 flex items-center justify-center border border-white/10">
+              <svg className="w-10 h-10 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
               </svg>
             </div>
-            <p className="text-sm text-gray-500 mb-1">No tracks yet</p>
-            <p className="text-xs text-gray-600">Upload MP3 files to get started</p>
+            <p className="text-base text-white font-medium mb-2">No tracks loaded</p>
+            <p className="text-sm text-gray-400 mb-6">Upload audio files to start mixing</p>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-white font-medium rounded-xl transition-all shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 hover:scale-105"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Upload Tracks
+            </button>
           </div>
         ) : (
-          <div className="divide-y divide-gray-800/30">
+          <div className="divide-y divide-white/5">
             {tracks.map((track, index) => {
               const isDragging = draggedIndex === index;
               const isDragOver = dragOverIndex === index;
@@ -823,7 +830,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
               const isLoadingStems = loadingStems === track.id;
               const trackVolume = playState?.volume ?? 1;
               const deckLabel = playState?.deck;
-              const deckColor = deckLabel === 'A' ? 'violet' : deckLabel === 'B' ? 'blue' : 'gray';
+              const deckColor = deckLabel === 'A' ? 'cyan' : deckLabel === 'B' ? 'emerald' : 'gray';
 
               return (
                 <div
@@ -833,9 +840,9 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragEnd={handleDragEnd}
                   className={`group transition-all duration-200 ${
-                    isDragging ? 'opacity-50 bg-violet-500/10' : ''
-                  } ${isDragOver ? 'bg-violet-500/20 border-t-2 border-violet-500' : ''} ${
-                    isPlaying ? (deckLabel === 'A' ? 'bg-violet-500/10 border-l-2 border-violet-500' : 'bg-blue-500/10 border-l-2 border-blue-500') : 'hover:bg-gray-800/30'
+                    isDragging ? 'opacity-50 bg-cyan-500/10' : ''
+                  } ${isDragOver ? 'bg-cyan-500/20 border-t-2 border-cyan-500' : ''} ${
+                    isPlaying ? (deckLabel === 'A' ? 'bg-cyan-500/5 border-l-2 border-cyan-500' : 'bg-emerald-500/5 border-l-2 border-emerald-500') : 'hover:bg-white/5'
                   }`}
                 >
                   {/* Main track row */}

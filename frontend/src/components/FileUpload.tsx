@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine } from '../audio/AudioEngine';
-import { BeatlyIcon, UploadIcon, WaveformIcon, SyncIcon, MixerIcon, MusicNoteIcon } from './Icons';
+import { StynXLogo, UploadIcon, WaveformIcon, SyncIcon, MixerIcon, MusicNoteIcon } from './Icons';
 import type { SoundCloudTrack } from '../types';
 
 interface UploadedTrack {
@@ -65,7 +65,7 @@ export const FileUpload: React.FC = () => {
           user: {
             id: 0,
             username: 'Local File',
-            avatar_url: null,
+            avatar_url: '',
             permalink_url: '',
           },
           artwork_url: null,
@@ -96,7 +96,7 @@ export const FileUpload: React.FC = () => {
         user: {
           id: 0,
           username: 'Local',
-          avatar_url: null,
+          avatar_url: '',
           permalink_url: '',
         },
         artwork_url: null,
@@ -126,21 +126,26 @@ export const FileUpload: React.FC = () => {
       <div className="max-w-2xl w-full">
         {/* Animated Header */}
         <div className="text-center mb-8">
-          {/* Animated Beatly Logo */}
+          {/* Animated StynX Logo */}
           <div className="relative inline-block mb-6">
             {/* Glow effect behind */}
-            <div className="absolute inset-0 blur-2xl opacity-50">
-              <div className="text-6xl font-bold bg-gradient-to-r from-violet-500 via-fuchsia-500 to-pink-500 bg-clip-text text-transparent animate-pulse">
-                Beatly
+            <div className="absolute inset-0 blur-2xl opacity-40">
+              <div className="text-6xl font-bold bg-gradient-to-r from-cyan-500 via-teal-400 to-emerald-500 bg-clip-text text-transparent animate-pulse">
+                StynX
               </div>
             </div>
 
+            {/* Waveform logo */}
+            <div className="flex justify-center mb-4">
+              <StynXLogo size={80} />
+            </div>
+
             {/* Main title with beat animation */}
-            <h1 className="relative text-6xl font-bold">
-              {['B', 'e', 'a', 't', 'l', 'y'].map((letter, index) => (
+            <h1 className="relative text-6xl font-bold text-white tracking-wider">
+              {['S', 't', 'y', 'n', 'X'].map((letter, index) => (
                 <span
                   key={index}
-                  className="inline-block bg-gradient-to-r from-violet-400 via-fuchsia-400 to-pink-400 bg-clip-text text-transparent"
+                  className="inline-block"
                   style={{
                     animation: `beatPulse 0.6s ease-in-out infinite`,
                     animationDelay: `${index * 0.1}s`,
@@ -156,7 +161,7 @@ export const FileUpload: React.FC = () => {
               {[...Array(12)].map((_, i) => (
                 <div
                   key={i}
-                  className="w-1.5 rounded-full bg-gradient-to-t from-violet-500 via-fuchsia-500 to-pink-500"
+                  className="w-1.5 rounded-full bg-gradient-to-t from-cyan-500 via-teal-400 to-emerald-500"
                   style={{
                     animation: `eqBar 0.5s ease-in-out infinite`,
                     animationDelay: `${i * 0.05}s`,
@@ -193,8 +198,8 @@ export const FileUpload: React.FC = () => {
             border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer
             transition-all duration-200
             ${uploading
-              ? 'border-dj-purple bg-dj-purple/10'
-              : 'border-gray-600 hover:border-dj-purple hover:bg-dj-purple/5'
+              ? 'border-cyan-500 bg-cyan-500/10'
+              : 'border-gray-600 hover:border-cyan-500 hover:bg-cyan-500/5'
             }
           `}
         >
@@ -209,13 +214,13 @@ export const FileUpload: React.FC = () => {
 
           {uploading ? (
             <div className="space-y-4">
-              <div className="w-16 h-16 border-4 border-dj-purple border-t-transparent rounded-full animate-spin mx-auto" />
+              <div className="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-gray-300">Uploading tracks...</p>
             </div>
           ) : (
             <>
               <div className="mb-4 flex justify-center">
-                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-cyan-500 via-teal-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
                   <UploadIcon size={40} className="text-white" />
                 </div>
               </div>
@@ -234,7 +239,7 @@ export const FileUpload: React.FC = () => {
 
         {/* Upload progress */}
         {uploadProgress.length > 0 && (
-          <div className="mt-6 bg-dj-dark rounded-xl p-4 max-h-48 overflow-y-auto">
+          <div className="mt-6 bg-[#16213e] rounded-xl p-4 max-h-48 overflow-y-auto">
             {uploadProgress.map((message, index) => (
               <div
                 key={index}
@@ -261,27 +266,27 @@ export const FileUpload: React.FC = () => {
 
         {/* Features */}
         <div className="mt-12 grid grid-cols-2 gap-4 text-sm">
-          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-              <WaveformIcon size={20} className="text-violet-400" />
+          <div className="bg-[#16213e] rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+              <WaveformIcon size={20} className="text-cyan-400" />
             </div>
             <p className="text-gray-300">Auto BPM & Key Detection</p>
           </div>
-          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <SyncIcon size={20} className="text-blue-400" />
+          <div className="bg-[#16213e] rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+              <SyncIcon size={20} className="text-teal-400" />
             </div>
             <p className="text-gray-300">Beat-Aligned Transitions</p>
           </div>
-          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center flex-shrink-0">
-              <MusicNoteIcon size={20} className="text-pink-400" />
+          <div className="bg-[#16213e] rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+              <MusicNoteIcon size={20} className="text-emerald-400" />
             </div>
             <p className="text-gray-300">AI Stem Separation</p>
           </div>
-          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-              <MixerIcon size={20} className="text-violet-400" />
+          <div className="bg-[#16213e] rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+              <MixerIcon size={20} className="text-cyan-400" />
             </div>
             <p className="text-gray-300">Two-Deck DJ Mixer</p>
           </div>

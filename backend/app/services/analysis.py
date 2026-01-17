@@ -74,6 +74,7 @@ async def download_audio_for_analysis(track_id: int, token: str) -> Optional[Pat
     audio_dir = settings.cache_dir / "audio"
     audio_dir.mkdir(parents=True, exist_ok=True)
 
+
     audio_path = audio_dir / f"{track_id}.mp3"
 
     # Return cached file if exists
@@ -294,21 +295,19 @@ async def separate_stems(track_id: int, audio_path: Path) -> dict:
         json.dump(status, f)
 
     try:
-        # Try to use Demucs for high-quality separation
-        demucs_success = False
+        # Try to import demucs
         try:
             import demucs.separate
             import torch
 
             # Run demucs separation
+            # Use htdemucs model (4 stems: drums, bass, vocals, other)
             device = settings.demucs_device
             if device == "cuda" and not torch.cuda.is_available():
                 device = "cpu"
 
             # Run in separate process to avoid blocking
             import sys
-            import subprocess
-
             cmd = [
                 sys.executable, "-m", "demucs.separate",
                 "-n", settings.demucs_model,
@@ -317,33 +316,22 @@ async def separate_stems(track_id: int, audio_path: Path) -> dict:
                 str(audio_path)
             ]
 
-            print(f"Running Demucs: {' '.join(cmd)}")
+            import subprocess
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
             if result.returncode != 0:
-                print(f"Demucs stdout: {result.stdout}")
-                print(f"Demucs stderr: {result.stderr}")
-                raise Exception(f"Demucs error: {result.stderr[:500]}")
+                raise Exception(f"Demucs failed: {result.stderr}")
 
             # Move stems to correct location
             demucs_output = stem_dir.parent / settings.demucs_model / audio_path.stem
-            stems_found = 0
             for stem_name in ["drums", "bass", "vocals", "other"]:
                 src = demucs_output / f"{stem_name}.wav"
                 dst = stem_dir / f"{stem_name}.wav"
                 if src.exists():
                     src.rename(dst)
-                    stems_found += 1
 
-            if stems_found == 4:
-                demucs_success = True
-                print(f"Demucs separation complete: {stems_found} stems")
-            else:
-                raise Exception(f"Only found {stems_found}/4 stems")
-
-        except Exception as e:
-            print(f"Demucs failed: {e}, falling back to pseudo-stems")
-            # Fallback to pseudo-stems using librosa
+        except ImportError:
+            # Demucs not installed, use fallback pseudo-stems
             await create_pseudo_stems(audio_path, stem_dir)
 
         # Update status to ready

@@ -5,7 +5,145 @@ interface IconProps {
   size?: number;
 }
 
-// Beatly Logo Icon - stylized "B" with sound waves
+// StynX Logo - Animated audio waveform with cyan-green gradient
+export const StynXLogo: React.FC<IconProps & { animated?: boolean }> = ({ className = '', size = 24, animated = true }) => {
+  const uniqueId = React.useId();
+  return (
+    <svg width={size} height={size * 0.6} viewBox="0 0 100 60" fill="none" className={className}>
+      <defs>
+        <linearGradient id={`stynxGrad-${uniqueId}`} x1="0%" y1="50%" x2="100%" y2="50%">
+          <stop offset="0%" stopColor="#06b6d4" />
+          <stop offset="40%" stopColor="#22d3ee" />
+          <stop offset="60%" stopColor="#2dd4bf" />
+          <stop offset="100%" stopColor="#10b981" />
+        </linearGradient>
+        <filter id={`glow-${uniqueId}`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+      {/* Animated waveform bars */}
+      {[0, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88].map((x, i) => {
+        const heights = [12, 20, 28, 38, 50, 45, 50, 38, 28, 20, 12, 8];
+        const h = heights[i];
+        return (
+          <rect
+            key={i}
+            x={x + 2}
+            y={30 - h / 2}
+            width="5"
+            height={h}
+            rx="2.5"
+            fill={`url(#stynxGrad-${uniqueId})`}
+            filter={`url(#glow-${uniqueId})`}
+            style={animated ? {
+              animation: `waveBar 1.2s ease-in-out infinite`,
+              animationDelay: `${i * 0.08}s`,
+              transformOrigin: 'center',
+            } : undefined}
+          />
+        );
+      })}
+      <style>{`
+        @keyframes waveBar {
+          0%, 100% { transform: scaleY(1); opacity: 0.8; }
+          50% { transform: scaleY(1.3); opacity: 1; }
+        }
+      `}</style>
+    </svg>
+  );
+};
+
+// StynX Logo Large - For hero sections
+export const StynXLogoLarge: React.FC<IconProps> = ({ className = '', size = 200 }) => {
+  const uniqueId = React.useId();
+  return (
+    <div className={`relative ${className}`}>
+      {/* Glow background */}
+      <div
+        className="absolute inset-0 blur-3xl opacity-30"
+        style={{
+          background: 'linear-gradient(135deg, #06b6d4 0%, #10b981 100%)',
+          transform: 'scale(1.5)',
+        }}
+      />
+      <svg width={size} height={size * 0.5} viewBox="0 0 200 100" fill="none" className="relative z-10">
+        <defs>
+          <linearGradient id={`stynxGradLg-${uniqueId}`} x1="0%" y1="50%" x2="100%" y2="50%">
+            <stop offset="0%" stopColor="#06b6d4" />
+            <stop offset="30%" stopColor="#22d3ee" />
+            <stop offset="70%" stopColor="#2dd4bf" />
+            <stop offset="100%" stopColor="#10b981" />
+          </linearGradient>
+          <filter id={`glowLg-${uniqueId}`} x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        {/* Waveform path - smoother curve matching reference */}
+        <path
+          d="M5 50
+             Q 15 50, 20 45
+             Q 25 40, 30 50
+             Q 35 60, 40 50
+             Q 45 40, 50 35
+             Q 55 30, 60 20
+             Q 65 10, 70 5
+             Q 75 0, 80 15
+             Q 85 30, 90 50
+             Q 95 70, 100 85
+             Q 105 100, 110 85
+             Q 115 70, 120 50
+             Q 125 30, 130 20
+             Q 135 10, 140 25
+             Q 145 40, 150 50
+             Q 155 60, 160 55
+             Q 165 50, 170 50
+             Q 175 50, 180 48
+             Q 185 46, 190 50
+             L 195 50"
+          stroke={`url(#stynxGradLg-${uniqueId})`}
+          strokeWidth="3"
+          strokeLinecap="round"
+          fill="none"
+          filter={`url(#glowLg-${uniqueId})`}
+          style={{
+            animation: 'wavePulse 2s ease-in-out infinite',
+          }}
+        />
+        {/* Highlight dot at peak */}
+        <circle
+          cx="110"
+          cy="85"
+          r="4"
+          fill="#22d3ee"
+          filter={`url(#glowLg-${uniqueId})`}
+          style={{
+            animation: 'dotPulse 2s ease-in-out infinite',
+          }}
+        />
+        <style>{`
+          @keyframes wavePulse {
+            0%, 100% { opacity: 0.9; }
+            50% { opacity: 1; }
+          }
+          @keyframes dotPulse {
+            0%, 100% { opacity: 0.6; r: 3; }
+            50% { opacity: 1; r: 5; }
+          }
+        `}</style>
+      </svg>
+    </div>
+  );
+};
+
+// Beatly Logo Icon - stylized "B" with sound waves (legacy)
 export const BeatlyIcon: React.FC<IconProps> = ({ className = '', size = 24 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
     <defs>

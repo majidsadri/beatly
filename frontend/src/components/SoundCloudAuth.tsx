@@ -20,12 +20,12 @@ export const SoundCloudAuth: React.FC<SoundCloudAuthProps> = ({ error }) => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8">
+    <div className="flex flex-col items-center justify-center min-h-screen p-8 bg-[#1a1a2e]">
       <div className="max-w-md w-full text-center">
         {/* Logo */}
         <div className="mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-dj-purple via-dj-blue to-dj-pink bg-clip-text text-transparent mb-2">
-            Beatly
+          <h1 className="text-5xl font-bold text-white tracking-wider mb-2">
+            StynX
           </h1>
           <p className="text-gray-400">
             DJ-style mixing powered by SoundCloud
@@ -33,23 +33,23 @@ export const SoundCloudAuth: React.FC<SoundCloudAuthProps> = ({ error }) => {
         </div>
 
         {/* Features */}
-        <div className="bg-dj-dark rounded-xl p-6 mb-8 text-left">
+        <div className="bg-[#16213e] rounded-xl p-6 mb-8 text-left">
           <h2 className="text-lg font-semibold mb-4">Mix your playlists like a DJ</h2>
           <ul className="space-y-3 text-gray-300">
             <li className="flex items-start gap-3">
-              <span className="text-dj-purple">♪</span>
+              <span className="text-cyan-400">♪</span>
               <span>Auto-detect BPM, key, and energy for each track</span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="text-dj-blue">♪</span>
+              <span className="text-teal-400">♪</span>
               <span>Beat-aligned transitions with phrase matching</span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="text-dj-pink">♪</span>
+              <span className="text-emerald-400">♪</span>
               <span>AI-powered stem separation for layered mixing</span>
             </li>
             <li className="flex items-start gap-3">
-              <span className="text-dj-purple">♪</span>
+              <span className="text-cyan-400">♪</span>
               <span>Smart track ordering for perfect flow</span>
             </li>
           </ul>
@@ -90,7 +90,7 @@ export const SoundCloudAuth: React.FC<SoundCloudAuthProps> = ({ error }) => {
         {/* Legal notice */}
         <p className="text-xs text-gray-500 mt-6">
           By connecting, you agree to stream music legally through your SoundCloud account.
-          Beatly processes audio for analysis only and respects SoundCloud&apos;s Terms of Service.
+          StynX processes audio for analysis only and respects SoundCloud&apos;s Terms of Service.
         </p>
       </div>
     </div>

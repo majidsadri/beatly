@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# Beatly Setup Script
-# This script sets up the development environment for Beatly
+# StynX Setup Script
+# This script sets up the development environment for StynX DJ Studio
 
 set -e
 
 echo "========================================="
-echo "        Beatly Setup Script"
+echo "        StynX DJ Studio Setup"
 echo "========================================="
 
 # Check for required tools
@@ -167,7 +167,7 @@ echo "========================================="
 echo "        Setup Complete!"
 echo "========================================="
 echo ""
-echo "Starting Beatly..."
+echo "Starting StynX..."
 echo ""
 
 # Start backend
@@ -197,11 +197,11 @@ sleep 2
 
 echo ""
 echo "========================================="
-echo "        Beatly is running!"
+echo "      StynX DJ Studio is running!"
 echo "========================================="
 echo ""
-echo "  Frontend: http://localhost:5173"
-echo "  Backend:  http://localhost:8000"
+echo "  Open in browser: http://localhost:5173"
+echo "  Backend API:     http://localhost:8000"
 echo ""
 echo "  Press Ctrl+C to stop all servers"
 echo ""

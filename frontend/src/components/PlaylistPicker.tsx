@@ -24,13 +24,13 @@ export const PlaylistPicker: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-screen p-8 bg-[#1a1a2e]">
       {/* Header */}
       <div className="max-w-4xl mx-auto mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-dj-purple to-dj-blue bg-clip-text text-transparent">
-              Beatly
+            <h1 className="text-3xl font-bold text-white tracking-wider">
+              StynX
             </h1>
             {user && (
               <p className="text-gray-400 mt-1">
@@ -61,7 +61,7 @@ export const PlaylistPicker: React.FC = () => {
         )}
 
         {playlists.length === 0 ? (
-          <div className="bg-dj-dark rounded-xl p-8 text-center">
+          <div className="bg-[#16213e] rounded-xl p-8 text-center">
             <p className="text-gray-400 mb-4">
               No playlists found in your SoundCloud account.
             </p>
@@ -76,7 +76,7 @@ export const PlaylistPicker: React.FC = () => {
                 key={playlist.id}
                 onClick={() => handleSelectPlaylist(playlist)}
                 disabled={loading !== null}
-                className="bg-dj-dark hover:bg-gray-800 rounded-xl p-4 text-left transition-all duration-200 group disabled:opacity-50"
+                className="bg-[#16213e] hover:bg-gray-800 rounded-xl p-4 text-left transition-all duration-200 group disabled:opacity-50"
               >
                 {/* Artwork */}
                 <div className="aspect-square rounded-lg overflow-hidden mb-4 bg-gray-800">
@@ -94,7 +94,7 @@ export const PlaylistPicker: React.FC = () => {
                 </div>
 
                 {/* Info */}
-                <h3 className="font-semibold truncate mb-1 group-hover:text-dj-purple transition-colors">
+                <h3 className="font-semibold truncate mb-1 group-hover:text-cyan-400 transition-colors">
                   {playlist.title}
                 </h3>
                 <p className="text-sm text-gray-400">
@@ -103,7 +103,7 @@ export const PlaylistPicker: React.FC = () => {
 
                 {/* Loading indicator */}
                 {loading === playlist.id && (
-                  <div className="flex items-center gap-2 mt-3 text-dj-purple">
+                  <div className="flex items-center gap-2 mt-3 text-cyan-400">
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
                     <span className="text-sm">Loading tracks...</span>
                   </div>
