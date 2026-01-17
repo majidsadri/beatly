@@ -726,6 +726,47 @@ export class AudioEngine {
     return dataArray;
   }
 
+  /**
+   * Generate static waveform peaks from an audio buffer for visualization
+   * Returns an array of peak values (0-1) representing the waveform
+   */
+  generateWaveformPeaks(trackId: number, numBars: number = 100): number[] {
+    const buffer = this.buffers.get(trackId);
+    if (!buffer) {
+      return new Array(numBars).fill(0);
+    }
+
+    const channelData = buffer.getChannelData(0); // Use first channel
+    const samplesPerBar = Math.floor(channelData.length / numBars);
+    const peaks: number[] = [];
+
+    for (let i = 0; i < numBars; i++) {
+      const start = i * samplesPerBar;
+      const end = start + samplesPerBar;
+
+      let max = 0;
+      for (let j = start; j < end && j < channelData.length; j++) {
+        const absValue = Math.abs(channelData[j]);
+        if (absValue > max) {
+          max = absValue;
+        }
+      }
+
+      peaks.push(max);
+    }
+
+    // Normalize peaks to 0-1 range
+    const maxPeak = Math.max(...peaks, 0.01);
+    return peaks.map(p => p / maxPeak);
+  }
+
+  /**
+   * Check if a buffer is loaded for a track
+   */
+  hasBuffer(trackId: number): boolean {
+    return this.buffers.has(trackId);
+  }
+
   calculateBpmSyncRate(sourceBpm: number, targetBpm: number): number {
     return targetBpm / sourceBpm;
   }

@@ -70,6 +70,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
   const [stemEnabled, setStemEnabled] = useState<Record<number, StemEnabledState>>({});
   const [stemVolumes, setStemVolumes] = useState<Record<number, StemVolumeState>>({});
   const [loadingStems, setLoadingStems] = useState<number | null>(null);
+  const [waveformPeaks, setWaveformPeaks] = useState<Record<number, number[]>>({});
 
   const audioEngine = getAudioEngine();
 
@@ -107,6 +108,35 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       checkStatuses();
     }
   }, [tracks]);
+
+  // Preload waveforms for tracks that don't have them yet
+  useEffect(() => {
+    const loadWaveforms = async () => {
+      for (const track of tracks) {
+        if (waveformPeaks[track.id]) continue; // Already have waveform
+
+        try {
+          // Load track audio to get waveform (if not already loaded)
+          if (!audioEngine.hasBuffer(track.id)) {
+            const streamUrl = `/api/uploads/tracks/${track.id}/stream`;
+            await audioEngine.loadTrack(track.id, streamUrl, false);
+          }
+
+          // Generate waveform peaks
+          const peaks = audioEngine.generateWaveformPeaks(track.id, 80);
+          if (peaks.some(p => p > 0)) {
+            setWaveformPeaks(prev => ({ ...prev, [track.id]: peaks }));
+          }
+        } catch (err) {
+          console.warn(`Failed to load waveform for track ${track.id}:`, err);
+        }
+      }
+    };
+
+    if (tracks.length > 0) {
+      loadWaveforms();
+    }
+  }, [tracks, audioEngine]);
 
   // Sync store deck states back to local playStates (for when MixingTools stops a deck)
   useEffect(() => {
@@ -332,6 +362,12 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       audioEngine.clearTrackCache(track.id);
       await audioEngine.loadTrack(track.id, streamUrl, true);
 
+      // Generate waveform peaks for visualization
+      if (!waveformPeaks[track.id]) {
+        const peaks = audioEngine.generateWaveformPeaks(track.id, 80);
+        setWaveformPeaks(prev => ({ ...prev, [track.id]: peaks }));
+      }
+
       const loadedBuffer = audioEngine.getBuffer(track.id);
       const duration = loadedBuffer?.duration ?? (track.duration / 1000);
       const startTime = currentState?.currentTime ?? 0;
@@ -393,7 +429,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
       // Set volume
       audioEngine.setVolume(useDeck, volume);
     }
-  }, [audioEngine, playStates, stemStatuses, stemEnabled, getAvailableDeck, setDeckTrack, setDeckPlaying, setDeckAnalysis, cacheAnalysis, getAnalysis]);
+  }, [audioEngine, playStates, stemStatuses, stemEnabled, getAvailableDeck, setDeckTrack, setDeckPlaying, setDeckAnalysis, cacheAnalysis, getAnalysis, waveformPeaks]);
 
   // Update current time for all playing tracks
   useEffect(() => {
@@ -909,19 +945,49 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                         )}
                       </div>
 
-                      {/* Timeline */}
+                      {/* Waveform Timeline */}
                       <div
                         ref={(el) => { timelineRefs.current[track.id] = el; }}
                         onMouseDown={(e) => handleTimelineMouseDown(e, track.id)}
-                        className={`relative h-2 bg-gray-700 rounded-full cursor-pointer overflow-hidden group/timeline`}
+                        className="relative h-10 bg-gray-800/50 rounded-lg cursor-pointer overflow-hidden group/timeline"
                       >
+                        {/* Waveform bars */}
+                        <div className="absolute inset-0 flex items-center justify-between px-0.5">
+                          {(waveformPeaks[track.id] || new Array(80).fill(0.1)).map((peak, i) => {
+                            const progress = getProgressPercent(track.id);
+                            const barPosition = (i / 80) * 100;
+                            const isPast = barPosition < progress;
+                            const barColor = isPlaying
+                              ? (deckColor === 'cyan' ? (isPast ? '#06b6d4' : '#164e63') : (isPast ? '#10b981' : '#064e3b'))
+                              : (isPast ? '#8b5cf6' : '#3f3f46');
+
+                            return (
+                              <div
+                                key={i}
+                                className="flex-1 mx-px flex items-center justify-center"
+                                style={{ height: '100%' }}
+                              >
+                                <div
+                                  className="w-full rounded-sm transition-all duration-75"
+                                  style={{
+                                    height: `${Math.max(8, peak * 90)}%`,
+                                    backgroundColor: barColor,
+                                    opacity: isPast ? 1 : 0.5,
+                                  }}
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Playhead indicator */}
                         <div
-                          className={`absolute top-0 left-0 h-full rounded-full transition-all duration-100 ${
-                            isPlaying ? `bg-${deckColor}-500` : 'bg-violet-500'
-                          }`}
-                          style={{ width: `${getProgressPercent(track.id)}%` }}
+                          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg shadow-white/50 transition-all duration-75 z-10"
+                          style={{ left: `${getProgressPercent(track.id)}%` }}
                         />
-                        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover/timeline:opacity-100 transition-opacity" />
+
+                        {/* Hover overlay */}
+                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover/timeline:opacity-100 transition-opacity" />
                       </div>
 
                       {/* Time display */}
