@@ -178,13 +178,23 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
 
         if (response.ok) {
           const data = await response.json();
+          // Clear cache for this track ID to prevent stale audio
+          audioEngine.clearTrackCache(data.id);
+
+          // Use consistent format with FileUpload.tsx
           newTracks.push({
             id: data.id,
             title: data.title,
             duration: data.duration || 0,
             artwork_url: null,
-            user: { username: 'Local File' },
-            stream_url: `/api/uploads/tracks/${data.id}/stream`,
+            user: {
+              id: 0,
+              username: 'Local File',
+              avatar_url: null,
+              permalink_url: '',
+            },
+            waveform_url: '',
+            permalink_url: '',
           });
         }
       } catch (error) {
