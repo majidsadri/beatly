@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine, StemName } from '../audio/AudioEngine';
+import { DrumsIcon, BassIcon, VocalsIcon, MelodyIcon, MusicNoteIcon, WaveformIcon } from './Icons';
 import type { SoundCloudTrack } from '../types';
 
 interface StemStatus {
@@ -13,11 +14,11 @@ interface TrackListProps {
   onAutoMix: () => void;
 }
 
-const STEMS: { name: StemName; label: string; fullName: string; color: string; icon: string }[] = [
-  { name: 'drums', label: 'D', fullName: 'Drums', color: '#f97316', icon: '🥁' },
-  { name: 'bass', label: 'B', fullName: 'Bass', color: '#8b5cf6', icon: '🎸' },
-  { name: 'vocals', label: 'V', fullName: 'Vocals', color: '#ec4899', icon: '🎤' },
-  { name: 'other', label: 'M', fullName: 'Melody', color: '#10b981', icon: '🎹' },
+const STEMS: { name: StemName; label: string; fullName: string; color: string; IconComponent: React.FC<{className?: string; size?: number}> }[] = [
+  { name: 'drums', label: 'D', fullName: 'Drums', color: '#f97316', IconComponent: DrumsIcon },
+  { name: 'bass', label: 'B', fullName: 'Bass', color: '#8b5cf6', IconComponent: BassIcon },
+  { name: 'vocals', label: 'V', fullName: 'Vocals', color: '#ec4899', IconComponent: VocalsIcon },
+  { name: 'other', label: 'M', fullName: 'Melody', color: '#10b981', IconComponent: MelodyIcon },
 ];
 
 // Stem volume state (0-1 for each stem)
@@ -29,12 +30,12 @@ interface StemVolumeState {
 }
 
 // Preset configurations
-const STEM_PRESETS: { name: string; label: string; icon: string; config: StemVolumeState }[] = [
-  { name: 'full', label: 'Full Mix', icon: '🎵', config: { drums: 1, bass: 1, vocals: 1, other: 1 } },
-  { name: 'acapella', label: 'Acapella', icon: '🎤', config: { drums: 0, bass: 0, vocals: 1, other: 0 } },
-  { name: 'instrumental', label: 'Instrumental', icon: '🎹', config: { drums: 1, bass: 1, vocals: 0, other: 1 } },
-  { name: 'rhythm', label: 'Rhythm', icon: '🥁', config: { drums: 1, bass: 1, vocals: 0, other: 0 } },
-  { name: 'melody', label: 'Melody Only', icon: '🎶', config: { drums: 0, bass: 0, vocals: 0, other: 1 } },
+const STEM_PRESETS: { name: string; label: string; IconComponent: React.FC<{className?: string; size?: number}>; config: StemVolumeState }[] = [
+  { name: 'full', label: 'Full', IconComponent: MusicNoteIcon, config: { drums: 1, bass: 1, vocals: 1, other: 1 } },
+  { name: 'acapella', label: 'Vocal', IconComponent: VocalsIcon, config: { drums: 0, bass: 0, vocals: 1, other: 0 } },
+  { name: 'instrumental', label: 'Inst', IconComponent: MelodyIcon, config: { drums: 1, bass: 1, vocals: 0, other: 1 } },
+  { name: 'rhythm', label: 'Beat', IconComponent: DrumsIcon, config: { drums: 1, bass: 1, vocals: 0, other: 0 } },
+  { name: 'melody', label: 'Synth', IconComponent: WaveformIcon, config: { drums: 0, bass: 0, vocals: 0, other: 1 } },
 ];
 
 // Legacy interface for backwards compatibility
@@ -983,7 +984,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                                 }}
                                 title={`${stem.fullName} - Click to ${enabled ? 'disable' : 'enable'}, Double-click to solo`}
                               >
-                                <span className="text-lg">{stem.icon}</span>
+                                <stem.IconComponent size={18} className={enabled ? '' : 'opacity-50'} />
                                 <span
                                   className="text-[7px] font-bold uppercase"
                                   style={{ color: enabled ? stem.color : '#6b7280' }}
@@ -1014,10 +1015,10 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                             <button
                               key={preset.name}
                               onClick={() => applyPreset(track.id, preset)}
-                              className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 text-[8px] text-gray-400 hover:text-white rounded transition-all"
+                              className="px-2 py-1 bg-gray-700/50 hover:bg-gray-600/50 text-gray-400 hover:text-white rounded transition-all flex items-center justify-center"
                               title={preset.label}
                             >
-                              {preset.icon}
+                              <preset.IconComponent size={12} />
                             </button>
                           ))}
                         </div>

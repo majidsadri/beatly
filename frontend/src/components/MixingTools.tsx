@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine } from '../audio/AudioEngine';
+import { DrumsIcon, HouseIcon, HipHopIcon, TechnoIcon, CrossfadeIcon, CutIcon, EQIcon, AutoMixIcon, MixerIcon } from './Icons';
 
 interface MixingToolsProps {
   onCrossfadeChange: (value: number) => void;
@@ -8,17 +9,17 @@ interface MixingToolsProps {
 
 // Drum patterns
 const DRUM_PATTERNS = [
-  { name: 'Basic', icon: '🥁', description: 'Simple kick and snare' },
-  { name: 'House', icon: '🏠', description: 'Four on the floor' },
-  { name: 'HipHop', icon: '🎤', description: 'Boom bap groove' },
-  { name: 'Techno', icon: '⚡', description: 'Driving kick pattern' },
+  { name: 'Basic', IconComponent: DrumsIcon, description: 'Simple kick and snare' },
+  { name: 'House', IconComponent: HouseIcon, description: 'Four on the floor' },
+  { name: 'HipHop', IconComponent: HipHopIcon, description: 'Boom bap groove' },
+  { name: 'Techno', IconComponent: TechnoIcon, description: 'Driving kick pattern' },
 ];
 
 // Transition types for auto mix
 const TRANSITION_TYPES = [
-  { name: 'Smooth', icon: '〰️', description: 'Gradual crossfade' },
-  { name: 'Cut', icon: '✂️', description: 'Quick cut transition' },
-  { name: 'EQ Swap', icon: '🎚️', description: 'Bass swap transition' },
+  { name: 'Smooth', IconComponent: CrossfadeIcon, description: 'Gradual crossfade' },
+  { name: 'Cut', IconComponent: CutIcon, description: 'Quick cut transition' },
+  { name: 'EQ Swap', IconComponent: EQIcon, description: 'Bass swap transition' },
 ];
 
 export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) => {
@@ -477,7 +478,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       }`}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">🎛️</span>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+              <AutoMixIcon size={18} className="text-white" />
+            </div>
             <div>
               <span className="text-xs font-medium text-white">AUTO MIX</span>
               {autoMixEnabled && (
@@ -559,8 +562,8 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
                     }`}
                     title={type.description}
                   >
-                    <span className="text-base block">{type.icon}</span>
-                    <span className={`text-[8px] block ${transitionType === index ? 'text-green-400' : 'text-gray-500'}`}>
+                    <type.IconComponent size={20} className={`mx-auto ${transitionType === index ? 'text-green-400' : 'text-gray-400'}`} />
+                    <span className={`text-[8px] block mt-1 ${transitionType === index ? 'text-green-400' : 'text-gray-500'}`}>
                       {type.name}
                     </span>
                   </button>
@@ -644,7 +647,9 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
       <div className="mb-4 p-3 bg-gradient-to-br from-orange-900/20 to-red-900/20 rounded-xl border border-orange-500/20">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <span className="text-lg">🥁</span>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center">
+              <DrumsIcon size={18} className="text-white" />
+            </div>
             <span className="text-xs font-medium text-orange-400">DRUM MACHINE</span>
             {drumLoopOn && (
               <span className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/20 rounded-full">
@@ -680,8 +685,8 @@ export const MixingTools: React.FC<MixingToolsProps> = ({ onCrossfadeChange }) =
                 }`}
                 title={pattern.description}
               >
-                <span className="text-base block">{pattern.icon}</span>
-                <span className={`text-[8px] block ${drumPattern === index ? 'text-orange-400' : 'text-gray-500'}`}>
+                <pattern.IconComponent size={20} className={`mx-auto ${drumPattern === index ? 'text-orange-400' : 'text-gray-400'}`} />
+                <span className={`text-[8px] block mt-1 ${drumPattern === index ? 'text-orange-400' : 'text-gray-500'}`}>
                   {pattern.name}
                 </span>
               </button>

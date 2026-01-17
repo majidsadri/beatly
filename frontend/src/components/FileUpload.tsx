@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import { getAudioEngine } from '../audio/AudioEngine';
+import { BeatlyIcon, UploadIcon, WaveformIcon, SyncIcon, MixerIcon, MusicNoteIcon } from './Icons';
 import type { SoundCloudTrack } from '../types';
 
 interface UploadedTrack {
@@ -163,9 +164,13 @@ export const FileUpload: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="text-6xl mb-4">🎵</div>
+              <div className="mb-4 flex justify-center">
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-pink-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                  <UploadIcon size={40} className="text-white" />
+                </div>
+              </div>
               <p className="text-xl text-gray-300 mb-2">
-                Drop your MP3 files here
+                Drop your audio files here
               </p>
               <p className="text-gray-500">
                 or click to browse
@@ -206,21 +211,29 @@ export const FileUpload: React.FC = () => {
 
         {/* Features */}
         <div className="mt-12 grid grid-cols-2 gap-4 text-sm">
-          <div className="bg-dj-dark rounded-xl p-4">
-            <span className="text-dj-purple text-lg">♪</span>
-            <p className="text-gray-300 mt-2">Auto BPM & Key Detection</p>
+          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+              <WaveformIcon size={20} className="text-violet-400" />
+            </div>
+            <p className="text-gray-300">Auto BPM & Key Detection</p>
           </div>
-          <div className="bg-dj-dark rounded-xl p-4">
-            <span className="text-dj-blue text-lg">♪</span>
-            <p className="text-gray-300 mt-2">Beat-Aligned Transitions</p>
+          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <SyncIcon size={20} className="text-blue-400" />
+            </div>
+            <p className="text-gray-300">Beat-Aligned Transitions</p>
           </div>
-          <div className="bg-dj-dark rounded-xl p-4">
-            <span className="text-dj-pink text-lg">♪</span>
-            <p className="text-gray-300 mt-2">Smart Mix Compatibility</p>
+          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-pink-500/20 flex items-center justify-center flex-shrink-0">
+              <MusicNoteIcon size={20} className="text-pink-400" />
+            </div>
+            <p className="text-gray-300">AI Stem Separation</p>
           </div>
-          <div className="bg-dj-dark rounded-xl p-4">
-            <span className="text-dj-purple text-lg">♪</span>
-            <p className="text-gray-300 mt-2">Two-Deck DJ Player</p>
+          <div className="bg-dj-dark rounded-xl p-4 flex items-start gap-3">
+            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+              <MixerIcon size={20} className="text-violet-400" />
+            </div>
+            <p className="text-gray-300">Two-Deck DJ Mixer</p>
           </div>
         </div>
       </div>
