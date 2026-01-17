@@ -742,57 +742,115 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
             </div>
           </div>
 
-          {/* Combined Timeline */}
-          <div className="mb-3">
-            <div className="relative h-3 bg-white/5 rounded-full overflow-hidden backdrop-blur">
-              {/* Deck A progress */}
-              {(() => {
-                const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
-                if (trackA) {
-                  const progress = trackA[1].duration > 0 ? (trackA[1].currentTime / trackA[1].duration) * 100 : 0;
-                  return (
-                    <div
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 to-cyan-400 transition-all duration-100"
-                      style={{ width: `${progress}%`, opacity: 0.9 }}
-                    />
-                  );
-                }
-                return null;
-              })()}
-              {/* Deck B progress overlay */}
-              {(() => {
-                const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
-                if (trackB) {
-                  const progress = trackB[1].duration > 0 ? (trackB[1].currentTime / trackB[1].duration) * 100 : 0;
-                  return (
-                    <div
-                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-100"
-                      style={{ width: `${progress}%`, opacity: 0.6 }}
-                    />
-                  );
-                }
-                return null;
-              })()}
-            </div>
+          {/* Waveform Display for Both Decks */}
+          <div className="space-y-2 mb-3">
+            {/* Deck A Waveform */}
+            {(() => {
+              const trackAEntry = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
+              if (!trackAEntry) return null;
+              const [trackIdStr, state] = trackAEntry;
+              const trackId = Number(trackIdStr);
+              const track = tracks.find(t => t.id === trackId);
+              const peaks = waveformPeaks[trackId] || new Array(100).fill(0.1);
+              const progress = state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
 
-            {/* Time display */}
-            <div className="flex justify-between mt-1.5">
-              {(() => {
-                const trackA = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'A');
-                const time = trackA ? trackA[1].currentTime : 0;
-                const mins = Math.floor(time / 60);
-                const secs = Math.floor(time % 60);
-                return <span className="text-[10px] text-cyan-400 font-medium">{mins}:{secs.toString().padStart(2, '0')}</span>;
-              })()}
-              <span className="text-[9px] text-gray-500 uppercase tracking-wider">Mix Timeline</span>
-              {(() => {
-                const trackB = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
-                const time = trackB ? trackB[1].currentTime : 0;
-                const mins = Math.floor(time / 60);
-                const secs = Math.floor(time % 60);
-                return <span className="text-[10px] text-emerald-400 font-medium">{mins}:{secs.toString().padStart(2, '0')}</span>;
-              })()}
-            </div>
+              return (
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-5 h-5 rounded bg-gradient-to-br from-cyan-500 to-cyan-600 flex items-center justify-center text-[9px] font-bold text-white">A</span>
+                    <span className="text-[10px] text-white font-medium truncate flex-1">{track?.title || 'Unknown'}</span>
+                    <span className="text-[10px] text-cyan-400 font-mono">
+                      {Math.floor(state.currentTime / 60)}:{Math.floor(state.currentTime % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="relative h-12 bg-gray-900/50 rounded-lg overflow-hidden">
+                    {/* Waveform bars */}
+                    <div className="absolute inset-0 flex items-center">
+                      {peaks.map((peak, i) => {
+                        const barPosition = (i / peaks.length) * 100;
+                        const isPast = barPosition < progress;
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 flex items-center justify-center"
+                            style={{ height: '100%' }}
+                          >
+                            <div
+                              className="w-full mx-px rounded-sm"
+                              style={{
+                                height: `${Math.max(4, peak * 85)}%`,
+                                backgroundColor: isPast ? '#06b6d4' : '#164e63',
+                                opacity: isPast ? 1 : 0.4,
+                                boxShadow: isPast ? '0 0 4px #06b6d4' : 'none',
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Playhead */}
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_white] z-10"
+                      style={{ left: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Deck B Waveform */}
+            {(() => {
+              const trackBEntry = Object.entries(playStates).find(([_, s]) => s.isPlaying && s.deck === 'B');
+              if (!trackBEntry) return null;
+              const [trackIdStr, state] = trackBEntry;
+              const trackId = Number(trackIdStr);
+              const track = tracks.find(t => t.id === trackId);
+              const peaks = waveformPeaks[trackId] || new Array(100).fill(0.1);
+              const progress = state.duration > 0 ? (state.currentTime / state.duration) * 100 : 0;
+
+              return (
+                <div className="relative">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="w-5 h-5 rounded bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-[9px] font-bold text-white">B</span>
+                    <span className="text-[10px] text-white font-medium truncate flex-1">{track?.title || 'Unknown'}</span>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      {Math.floor(state.currentTime / 60)}:{Math.floor(state.currentTime % 60).toString().padStart(2, '0')}
+                    </span>
+                  </div>
+                  <div className="relative h-12 bg-gray-900/50 rounded-lg overflow-hidden">
+                    {/* Waveform bars */}
+                    <div className="absolute inset-0 flex items-center">
+                      {peaks.map((peak, i) => {
+                        const barPosition = (i / peaks.length) * 100;
+                        const isPast = barPosition < progress;
+                        return (
+                          <div
+                            key={i}
+                            className="flex-1 flex items-center justify-center"
+                            style={{ height: '100%' }}
+                          >
+                            <div
+                              className="w-full mx-px rounded-sm"
+                              style={{
+                                height: `${Math.max(4, peak * 85)}%`,
+                                backgroundColor: isPast ? '#10b981' : '#064e3b',
+                                opacity: isPast ? 1 : 0.4,
+                                boxShadow: isPast ? '0 0 4px #10b981' : 'none',
+                              }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Playhead */}
+                    <div
+                      className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_white] z-10"
+                      style={{ left: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Deck Cards */}
