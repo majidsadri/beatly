@@ -5,8 +5,17 @@ echo "     Beatly Diagnostic Script"
 echo "========================================="
 echo ""
 
+echo "0. Checking ffmpeg (required for audio)..."
+if command -v ffmpeg &> /dev/null; then
+    echo "   OK: $(ffmpeg -version 2>&1 | head -1)"
+else
+    echo "   ERROR: ffmpeg not found!"
+    echo "   Install: brew install ffmpeg (macOS) or apt install ffmpeg (Ubuntu)"
+fi
+
 cd backend
 
+echo ""
 echo "1. Checking Python venv..."
 if [ -f "./venv/bin/python" ]; then
     echo "   OK: venv exists"

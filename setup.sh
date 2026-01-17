@@ -47,6 +47,26 @@ if ! command -v npm &> /dev/null; then
 fi
 echo "  npm $(npm -v)"
 
+# Check ffmpeg (required for audio processing)
+if ! command -v ffmpeg &> /dev/null; then
+    echo ""
+    echo "WARNING: ffmpeg is not installed."
+    echo "         Audio processing (especially Demucs) requires ffmpeg."
+    echo ""
+    echo "  Install ffmpeg:"
+    echo "    macOS:   brew install ffmpeg"
+    echo "    Ubuntu:  sudo apt install ffmpeg"
+    echo "    Windows: Download from https://ffmpeg.org/download.html"
+    echo ""
+    read -p "Continue without ffmpeg? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        exit 1
+    fi
+else
+    echo "  ffmpeg $(ffmpeg -version 2>&1 | head -1 | cut -d' ' -f3)"
+fi
+
 echo ""
 echo "Installing root dependencies..."
 npm install
