@@ -700,66 +700,9 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
 
   return (
     <div className="space-y-4">
-      {/* Zone Manager */}
-      <ZoneManager onUploadToZone={handleUploadToZone} uploading={uploading} />
-
-      {/* Track List */}
-      <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-        {/* Header */}
-        <div className="p-5 border-b border-white/10 bg-gradient-to-r from-cyan-500/10 via-transparent to-emerald-500/10">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/25">
-                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-white">Tracks</h2>
-                <p className="text-xs text-gray-400">
-                  {activeZoneFilter ? (
-                    <>
-                      {filteredTracks.length} of {tracks.length} tracks
-                      <span className="ml-1 text-cyan-400">
-                        ({zones.find(z => z.id === activeZoneFilter)?.name})
-                      </span>
-                    </>
-                  ) : (
-                    <>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'} loaded</>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            {/* Upload Button */}
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-xl transition-all border border-white/10 hover:border-white/20"
-            >
-              {uploading ? (
-                <span className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              )}
-              Add Tracks
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".mp3,.wav,.m4a,.ogg,.flac"
-              multiple
-              className="hidden"
-              onChange={(e) => handleFileUpload(e.target.files)}
-            />
-          </div>
-        </div>
-
-        {/* Now Playing Bar */}
-        {Object.values(playStates).some(s => s.isPlaying) && (
-        <div className="p-4 border-b border-white/5 bg-gradient-to-r from-cyan-500/10 via-transparent to-emerald-500/10">
+      {/* Now Playing Bar - At the top */}
+      {Object.values(playStates).some(s => s.isPlaying) && (
+        <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-2xl p-4 bg-gradient-to-r from-cyan-500/10 via-transparent to-emerald-500/10">
           {/* Header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
@@ -932,9 +875,66 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
             </div>
           </div>
         </div>
-        )}
+      )}
 
-        {/* Track List */}
+      {/* Zone Manager */}
+      <ZoneManager onUploadToZone={handleUploadToZone} uploading={uploading} />
+
+      {/* Track List */}
+      <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+        {/* Header */}
+        <div className="p-5 border-b border-white/10 bg-gradient-to-r from-cyan-500/10 via-transparent to-emerald-500/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-base font-semibold text-white">Tracks</h2>
+                <p className="text-xs text-gray-400">
+                  {activeZoneFilter ? (
+                    <>
+                      {filteredTracks.length} of {tracks.length} tracks
+                      <span className="ml-1 text-cyan-400">
+                        ({zones.find(z => z.id === activeZoneFilter)?.name})
+                      </span>
+                    </>
+                  ) : (
+                    <>{tracks.length} {tracks.length === 1 ? 'track' : 'tracks'} loaded</>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Upload Button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white text-sm font-medium rounded-xl transition-all border border-white/10 hover:border-white/20"
+            >
+              {uploading ? (
+                <span className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
+              Add Tracks
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".mp3,.wav,.m4a,.ogg,.flac"
+              multiple
+              className="hidden"
+              onChange={(e) => handleFileUpload(e.target.files)}
+            />
+          </div>
+        </div>
+
+        {/* Track List Scroll Container */}
         <div className="max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
           {tracks.length === 0 ? (
           <div className="p-12 text-center">
