@@ -1,3 +1,64 @@
+// Zone Types - Music intensity/genre categories
+export type ZoneId = 'chill' | 'groove' | 'energy' | 'power' | 'metal';
+
+export interface Zone {
+  id: ZoneId;
+  name: string;
+  description: string;
+  color: string;      // Tailwind color class
+  bgColor: string;    // Background color
+  icon: string;       // Emoji or icon identifier
+  enabled: boolean;
+}
+
+export const DEFAULT_ZONES: Zone[] = [
+  {
+    id: 'chill',
+    name: 'Chill',
+    description: 'Light, ambient, easy listening',
+    color: 'sky',
+    bgColor: '#0ea5e9',
+    icon: '🌊',
+    enabled: true,
+  },
+  {
+    id: 'groove',
+    name: 'Groove',
+    description: 'Mid-tempo, funk, soul, R&B',
+    color: 'violet',
+    bgColor: '#8b5cf6',
+    icon: '🎸',
+    enabled: true,
+  },
+  {
+    id: 'energy',
+    name: 'Energy',
+    description: 'Upbeat, dance, house, pop',
+    color: 'emerald',
+    bgColor: '#10b981',
+    icon: '⚡',
+    enabled: true,
+  },
+  {
+    id: 'power',
+    name: 'Power',
+    description: 'High energy, EDM, techno, trance',
+    color: 'orange',
+    bgColor: '#f97316',
+    icon: '🔥',
+    enabled: true,
+  },
+  {
+    id: 'metal',
+    name: 'Metal',
+    description: 'Hard rock, heavy metal, intense',
+    color: 'red',
+    bgColor: '#ef4444',
+    icon: '🤘',
+    enabled: true,
+  },
+];
+
 // SoundCloud Types
 export interface SoundCloudUser {
   id: number;
@@ -15,6 +76,7 @@ export interface SoundCloudTrack {
   stream_url?: string;
   waveform_url: string;
   permalink_url: string;
+  zoneId?: ZoneId; // Optional zone assignment
 }
 
 export interface SoundCloudPlaylist {
@@ -125,4 +187,7 @@ export interface AppState {
   transitionPlan: TransitionPlan | null;
   analysisCache: Map<number, TrackAnalysis>;
   stemsCache: Map<number, StemSet>;
+  // Zones
+  zones: Zone[];
+  activeZoneFilter: ZoneId | null; // null means show all
 }

@@ -9,7 +9,10 @@ import type {
   TrackAnalysis,
   StemSet,
   TransitionPlan,
+  Zone,
+  ZoneId,
 } from '../types';
+import { DEFAULT_ZONES } from '../types';
 
 const createInitialDeckState = (id: DeckId): DeckState => ({
   id,
@@ -64,6 +67,15 @@ interface StoreActions {
   cacheStems: (trackId: number, stems: StemSet) => void;
   getAnalysis: (trackId: number) => TrackAnalysis | undefined;
   getStems: (trackId: number) => StemSet | undefined;
+
+  // Zones
+  setZones: (zones: Zone[]) => void;
+  toggleZone: (zoneId: ZoneId) => void;
+  setActiveZoneFilter: (zoneId: ZoneId | null) => void;
+  setTrackZone: (trackId: number, zoneId: ZoneId | undefined) => void;
+  getZone: (zoneId: ZoneId) => Zone | undefined;
+  getEnabledZones: () => Zone[];
+  getTracksByZone: (zoneId: ZoneId) => SoundCloudTrack[];
 }
 
 type Store = AppState & StoreActions;
@@ -86,6 +98,8 @@ export const useStore = create<Store>((set, get) => ({
   transitionPlan: null,
   analysisCache: new Map(),
   stemsCache: new Map(),
+  zones: DEFAULT_ZONES,
+  activeZoneFilter: null,
 
   // Auth actions
   setAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
@@ -209,4 +223,29 @@ export const useStore = create<Store>((set, get) => ({
 
   getAnalysis: (trackId) => get().analysisCache.get(trackId),
   getStems: (trackId) => get().stemsCache.get(trackId),
+
+  // Zone actions
+  setZones: (zones) => set({ zones }),
+
+  toggleZone: (zoneId) =>
+    set((state) => ({
+      zones: state.zones.map((zone) =>
+        zone.id === zoneId ? { ...zone, enabled: !zone.enabled } : zone
+      ),
+    })),
+
+  setActiveZoneFilter: (zoneId) => set({ activeZoneFilter: zoneId }),
+
+  setTrackZone: (trackId, zoneId) =>
+    set((state) => ({
+      tracks: state.tracks.map((track) =>
+        track.id === trackId ? { ...track, zoneId } : track
+      ),
+    })),
+
+  getZone: (zoneId) => get().zones.find((z) => z.id === zoneId),
+
+  getEnabledZones: () => get().zones.filter((z) => z.enabled),
+
+  getTracksByZone: (zoneId) => get().tracks.filter((t) => t.zoneId === zoneId),
 }));
