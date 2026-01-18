@@ -1159,7 +1159,7 @@ export const TrackList: React.FC<TrackListProps> = ({ onLoadToDeck: _onLoadToDec
                       <option value="">No Zone</option>
                       {zones.filter(z => z.enabled).map(zone => (
                         <option key={zone.id} value={zone.id}>
-                          {zone.icon} {zone.name}
+                          {zone.name}
                         </option>
                       ))}
                     </select>
